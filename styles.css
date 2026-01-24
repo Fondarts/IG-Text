@@ -20,25 +20,18 @@ body {
     align-items: start;
 }
 
-.editor-panel, .preview-panel {
+.editor-panel {
     background: white;
     border-radius: 20px;
     padding: 30px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
-h1 {
+.editor-panel h1 {
     color: #333;
     margin-bottom: 25px;
     font-size: 28px;
-    text-align: center;
-}
-
-h2 {
-    color: #333;
-    margin-bottom: 20px;
-    font-size: 24px;
-    text-align: center;
+    font-weight: 700;
 }
 
 .input-section {
@@ -50,21 +43,22 @@ h2 {
     margin-bottom: 10px;
     color: #555;
     font-weight: 600;
+    font-size: 14px;
 }
 
-#text-input {
+.input-section textarea {
     width: 100%;
     min-height: 120px;
     padding: 15px;
     border: 2px solid #e0e0e0;
-    border-radius: 12px;
+    border-radius: 10px;
     font-size: 16px;
     font-family: inherit;
     resize: vertical;
     transition: border-color 0.3s;
 }
 
-#text-input:focus {
+.input-section textarea:focus {
     outline: none;
     border-color: #667eea;
 }
@@ -90,15 +84,21 @@ h2 {
 .control-group input[type="color"] {
     width: 100%;
     height: 50px;
-    border: none;
+    border: 2px solid #e0e0e0;
     border-radius: 8px;
     cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.control-group input[type="color"]:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .control-group input[type="range"] {
     width: 100%;
-    height: 6px;
-    border-radius: 3px;
+    height: 8px;
+    border-radius: 5px;
     background: #e0e0e0;
     outline: none;
     -webkit-appearance: none;
@@ -183,7 +183,8 @@ h2 {
 .text-svg {
     position: relative;
     display: block;
-    max-width: calc(100% - 40px);
+    width: calc(100% - 40px);
+    height: calc(100% - 40px);
     cursor: move;
     user-select: none;
     transition: transform 0.1s ease;
@@ -203,8 +204,7 @@ h2 {
 
 .text-preview.neon {
     font-family: 'Arial Black', Arial, sans-serif;
-    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
-    letter-spacing: 2px;
+    text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
 }
 
 .text-preview.typewriter {
@@ -213,17 +213,26 @@ h2 {
 }
 
 .text-preview.strong {
-    font-family: 'Impact', 'Arial Black', sans-serif;
+    font-family: Impact, 'Arial Black', sans-serif;
     letter-spacing: 1px;
-    text-transform: uppercase;
 }
 
-@media (max-width: 968px) {
+.preview-panel {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.preview-panel h2 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+@media (max-width: 1024px) {
     .container {
         grid-template-columns: 1fr;
-    }
-    
-    .story-container {
-        max-width: 100%;
     }
 }

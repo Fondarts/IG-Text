@@ -50,7 +50,9 @@ function initializeApp() {
         const txtColor = textColor.value;
         const backgroundColor = bgColor.value;
         const opacity = bgOpacity.value / 100;
-        const size = Math.max(parseInt(fontSize.value) || 180, 30);
+        // Leer el valor del slider correctamente
+        const sliderValue = fontSize.value;
+        const size = Math.max(parseInt(sliderValue, 10) || 180, 15);
         const isBold = bold.checked;
         const isItalic = italic.checked;
         const isTransparent = transparentBg.checked;
@@ -122,21 +124,39 @@ function initializeApp() {
         const totalHeight = lineMetrics.reduce((sum, m) => sum + m.height, 0) + (padding * 2);
         
         // Recalcular posiciones X según la alineación
+        // El padding es uniforme en todas las direcciones
         lineMetrics.forEach((metric) => {
             if (alignment === 'center') {
                 metric.x = maxWidth / 2;
             } else if (alignment === 'right') {
+                // Alineación derecha: texto pegado al borde derecho con padding
                 metric.x = maxWidth - padding;
             } else {
-                // Izquierda
+                // Izquierda: texto pegado al borde izquierdo con padding
                 metric.x = padding;
             }
         });
 
-        // Ajustar tamaño del SVG
-        svg.setAttribute('width', maxWidth);
-        svg.setAttribute('height', totalHeight);
-        svg.setAttribute('viewBox', `0 0 ${maxWidth} ${totalHeight}`);
+        // Ajustar viewBox del SVG con tamaño fijo para mantener el tamaño del texto constante
+        // El SVG tiene un tamaño fijo en CSS (width: calc(100% - 40px))
+        // Usamos un viewBox fijo basado en un tamaño de referencia constante
+        // para que el texto siempre se vea al mismo tamaño visual
+        const storyContainer = svg.closest('.story-container');
+        let referenceWidth = 400; // Ancho de referencia fijo (mismo que max-width del contenedor)
+        let referenceHeight = (referenceWidth * 16) / 9; // Altura de referencia basada en aspect-ratio 9:16 (vertical)
+        
+        if (storyContainer) {
+            const rect = storyContainer.getBoundingClientRect();
+            if (rect.width > 0) {
+                referenceWidth = rect.width - 40; // Restar padding
+                referenceHeight = rect.height - 40;
+            }
+        }
+        
+        // Usar un viewBox fijo para mantener el tamaño visual del texto constante
+        // El contenido se escalará dentro de este viewBox fijo
+        svg.setAttribute('viewBox', `0 0 ${referenceWidth} ${referenceHeight}`);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
         // Convertir color de fondo a rgba
         function hexToRgba(hex, alpha) {
@@ -164,16 +184,17 @@ function initializeApp() {
                 const textWidth = lineMetric.width;
                 const width = textWidth + 2 * padding;
                 
-                // Calcular posición según alineación (exactamente como en el código Android)
+                // Calcular posición según alineación
+                // El padding debe ser uniforme en todas las direcciones
                 let shiftLeft, shiftRight;
                 if (alignment === 'right') {
-                    // ALIGN_END / Gravity.RIGHT
-                    shiftLeft = maxWidth - width + padding;
-                    shiftRight = maxWidth + padding;
+                    // ALIGN_END / Gravity.RIGHT - padding uniforme a la derecha
+                    shiftLeft = maxWidth - width;
+                    shiftRight = maxWidth;
                 } else if (alignment === 'left') {
-                    // ALIGN_START / Gravity.LEFT
-                    shiftLeft = 0 - padding;
-                    shiftRight = width + shiftLeft;
+                    // ALIGN_START / Gravity.LEFT - padding uniforme a la izquierda
+                    shiftLeft = 0;
+                    shiftRight = width;
                 } else {
                     // ALIGN_CENTER / Gravity.CENTER
                     shiftLeft = (maxWidth - width) / 2;
