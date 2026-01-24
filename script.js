@@ -18,11 +18,12 @@ function initializeApp() {
     const italic = document.getElementById('italic');
     const transparentBg = document.getElementById('transparent-bg');
     const textAlign = document.getElementById('text-align');
+    const downloadBtn = document.getElementById('download-btn');
 
     // Verificar que todos los elementos existan
     if (!textInput || !svg || !textStyle || !textColor || !bgColor || 
         !bgOpacity || !opacityValue || !fontSize || !fontSizeValue || 
-        !bold || !italic || !transparentBg || !textAlign) {
+        !bold || !italic || !transparentBg || !textAlign || !downloadBtn) {
         console.error('Error: No se encontraron todos los elementos del DOM');
         return;
     }
@@ -321,6 +322,104 @@ function initializeApp() {
     italic.addEventListener('change', renderText);
     transparentBg.addEventListener('change', renderText);
     textAlign.addEventListener('change', renderText);
+
+    // Función para descargar el SVG como PNG
+    function downloadAsPNG() {
+        console.log('downloadAsPNG llamado');
+        
+        // Verificar que el SVG tenga contenido
+        if (!svg || svg.children.length === 0) {
+            alert('No hay texto para descargar. Por favor, escribe algo primero.');
+            return;
+        }
+        
+        try {
+            // Obtener el SVG y sus dimensiones
+            const svgElement = svg.cloneNode(true);
+            
+            // Asegurar que el SVG tenga los atributos necesarios
+            const viewBox = svg.getAttribute('viewBox');
+            if (!viewBox) {
+                alert('Error: El SVG no tiene viewBox definido.');
+                return;
+            }
+            
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            console.log('SVG serializado, tamaño:', svgData.length);
+            
+            // Agregar el namespace si no está presente
+            if (!svgData.includes('xmlns')) {
+                const svgWithNS = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+                const svgBlob = new Blob([svgWithNS], { type: 'image/svg+xml;charset=utf-8' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                processSVGToPNG(svgUrl, viewBox);
+            } else {
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                processSVGToPNG(svgUrl, viewBox);
+            }
+        } catch (error) {
+            console.error('Error al descargar PNG:', error);
+            alert('Error al descargar la imagen: ' + error.message);
+        }
+    }
+    
+    function processSVGToPNG(svgUrl, viewBox) {
+        // Crear una imagen para cargar el SVG
+        const img = new Image();
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        img.onload = function() {
+            console.log('Imagen SVG cargada');
+            
+            // Obtener las dimensiones del viewBox
+            const viewBoxValues = viewBox.split(' ');
+            const svgWidth = parseFloat(viewBoxValues[2]);
+            const svgHeight = parseFloat(viewBoxValues[3]);
+            
+            console.log('Dimensiones:', svgWidth, 'x', svgHeight);
+            
+            // Configurar el canvas con las dimensiones del SVG
+            canvas.width = svgWidth;
+            canvas.height = svgHeight;
+            
+            // Dibujar la imagen en el canvas
+            ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+            
+            // Convertir el canvas a PNG y descargar
+            canvas.toBlob(function(blob) {
+                if (!blob) {
+                    alert('Error al generar el blob de la imagen.');
+                    URL.revokeObjectURL(svgUrl);
+                    return;
+                }
+                
+                console.log('Blob generado, tamaño:', blob.size);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'instagram-text.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                URL.revokeObjectURL(svgUrl);
+                console.log('Descarga iniciada');
+            }, 'image/png');
+        };
+        
+        img.onerror = function(e) {
+            console.error('Error al cargar el SVG:', e);
+            alert('Error al generar la imagen. Por favor, intenta de nuevo.');
+            URL.revokeObjectURL(svgUrl);
+        };
+        
+        img.src = svgUrl;
+    }
+    
+    // Event listener para el botón de descarga
+    downloadBtn.addEventListener('click', downloadAsPNG);
 
     // Inicializar
     renderText();
