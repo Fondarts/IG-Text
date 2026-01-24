@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Texto Instagram Stories</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="editor-panel">
+            <h1>Editor de Texto Instagram Stories <span style="font-size: 0.6em; color: #667eea; font-weight: normal;">V13</span></h1>
+            
+            <div class="input-section">
+                <label for="text-input">Escribe tu texto:</label>
+                <textarea id="text-input" placeholder="Escribe aquí tu texto..."></textarea>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label for="text-style">Estilo de texto:</label>
+                    <select id="text-style">
+                        <option value="classic">Classic</option>
+                        <option value="modern">Modern</option>
+                        <option value="neon">Neon</option>
+                        <option value="typewriter">Typewriter</option>
+                        <option value="strong">Strong</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="text-color">Color del texto:</label>
+                    <input type="color" id="text-color" value="#ffffff">
+                </div>
+
+                <div class="control-group">
+                    <label for="bg-color">Color de fondo:</label>
+                    <input type="color" id="bg-color" value="#000000">
+                </div>
+
+                <div class="control-group">
+                    <label for="bg-opacity">Opacidad del fondo:</label>
+                    <input type="range" id="bg-opacity" min="0" max="100" value="100">
+                    <span id="opacity-value">100%</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="font-size">Tamaño de fuente:</label>
+                    <input type="range" id="font-size" min="80" max="300" value="180">
+                    <span id="font-size-value">180px</span>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="bold"> Negrita
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="italic"> Cursiva
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="transparent-bg"> Fondo transparente
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <label for="text-align">Alineación del texto:</label>
+                    <select id="text-align">
+                        <option value="left">Izquierda</option>
+                        <option value="center">Centro</option>
+                        <option value="right">Derecha</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="preview-panel">
+            <h2>Vista Previa</h2>
+            <div class="story-container">
+                <div class="story-background">
+                    <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
