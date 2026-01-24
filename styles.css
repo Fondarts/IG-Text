@@ -75,6 +75,17 @@ body {
     gap: 8px;
 }
 
+.control-group-inline {
+    display: flex;
+    flex-direction: row;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.control-group-inline .control-group {
+    flex: 1;
+}
+
 .control-group label {
     color: #555;
     font-weight: 600;
