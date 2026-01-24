@@ -9,7 +9,7 @@
 <body>
     <div class="container">
         <div class="editor-panel">
-            <h1>Editor de Texto Instagram Stories <span style="font-size: 0.6em; color: #667eea; font-weight: normal;">V19</span></h1>
+            <h1>Editor de Texto Instagram Stories <span style="font-size: 0.6em; color: #667eea; font-weight: normal;">V21</span></h1>
             
             <div class="input-section">
                 <label for="text-input">Escribe tu texto:</label>
@@ -46,8 +46,8 @@
 
                 <div class="control-group">
                     <label for="font-size">Tamaño de fuente:</label>
-                    <input type="range" id="font-size" min="15" max="300" value="180">
-                    <span id="font-size-value">180px</span>
+                    <input type="range" id="font-size" min="15" max="300" value="60">
+                    <span id="font-size-value">60px</span>
                 </div>
 
                 <div class="control-group">
@@ -72,9 +72,86 @@
                     <label for="text-align">Alineación del texto:</label>
                     <select id="text-align">
                         <option value="left">Izquierda</option>
-                        <option value="center">Centro</option>
+                        <option value="center" selected>Centro</option>
                         <option value="right">Derecha</option>
                     </select>
+                </div>
+
+                <div class="control-group">
+                    <label>Agregar emoji:</label>
+                    <div class="emoji-selector">
+                        <button type="button" id="emoji-btn" class="emoji-btn">😀 Emojis</button>
+                        <div id="emoji-panel" class="emoji-panel" style="display: none;">
+                            <div class="emoji-grid">
+                                <button type="button" class="emoji-item">😀</button>
+                                <button type="button" class="emoji-item">😃</button>
+                                <button type="button" class="emoji-item">😄</button>
+                                <button type="button" class="emoji-item">😁</button>
+                                <button type="button" class="emoji-item">😆</button>
+                                <button type="button" class="emoji-item">😅</button>
+                                <button type="button" class="emoji-item">🤣</button>
+                                <button type="button" class="emoji-item">😂</button>
+                                <button type="button" class="emoji-item">🙂</button>
+                                <button type="button" class="emoji-item">😊</button>
+                                <button type="button" class="emoji-item">😍</button>
+                                <button type="button" class="emoji-item">🥰</button>
+                                <button type="button" class="emoji-item">😘</button>
+                                <button type="button" class="emoji-item">😋</button>
+                                <button type="button" class="emoji-item">😎</button>
+                                <button type="button" class="emoji-item">🥳</button>
+                                <button type="button" class="emoji-item">😴</button>
+                                <button type="button" class="emoji-item">😢</button>
+                                <button type="button" class="emoji-item">😭</button>
+                                <button type="button" class="emoji-item">😡</button>
+                                <button type="button" class="emoji-item">❤️</button>
+                                <button type="button" class="emoji-item">🧡</button>
+                                <button type="button" class="emoji-item">💛</button>
+                                <button type="button" class="emoji-item">💚</button>
+                                <button type="button" class="emoji-item">💙</button>
+                                <button type="button" class="emoji-item">💜</button>
+                                <button type="button" class="emoji-item">🖤</button>
+                                <button type="button" class="emoji-item">🤍</button>
+                                <button type="button" class="emoji-item">💯</button>
+                                <button type="button" class="emoji-item">🔥</button>
+                                <button type="button" class="emoji-item">⭐</button>
+                                <button type="button" class="emoji-item">🌟</button>
+                                <button type="button" class="emoji-item">✨</button>
+                                <button type="button" class="emoji-item">💫</button>
+                                <button type="button" class="emoji-item">🎉</button>
+                                <button type="button" class="emoji-item">🎊</button>
+                                <button type="button" class="emoji-item">🎈</button>
+                                <button type="button" class="emoji-item">🎁</button>
+                                <button type="button" class="emoji-item">👍</button>
+                                <button type="button" class="emoji-item">👎</button>
+                                <button type="button" class="emoji-item">👌</button>
+                                <button type="button" class="emoji-item">✌️</button>
+                                <button type="button" class="emoji-item">👏</button>
+                                <button type="button" class="emoji-item">🙌</button>
+                                <button type="button" class="emoji-item">🙏</button>
+                                <button type="button" class="emoji-item">💪</button>
+                                <button type="button" class="emoji-item">🎯</button>
+                                <button type="button" class="emoji-item">🎮</button>
+                                <button type="button" class="emoji-item">🚀</button>
+                                <button type="button" class="emoji-item">💎</button>
+                                <button type="button" class="emoji-item">🏆</button>
+                                <button type="button" class="emoji-item">🥇</button>
+                                <button type="button" class="emoji-item">🎵</button>
+                                <button type="button" class="emoji-item">🎶</button>
+                                <button type="button" class="emoji-item">🎤</button>
+                                <button type="button" class="emoji-item">🎧</button>
+                                <button type="button" class="emoji-item">📷</button>
+                                <button type="button" class="emoji-item">📸</button>
+                                <button type="button" class="emoji-item">🌍</button>
+                                <button type="button" class="emoji-item">🌎</button>
+                                <button type="button" class="emoji-item">🌏</button>
+                                <button type="button" class="emoji-item">🌊</button>
+                                <button type="button" class="emoji-item">☀️</button>
+                                <button type="button" class="emoji-item">🌙</button>
+                                <button type="button" class="emoji-item">⭐</button>
+                                <button type="button" class="emoji-item">🌈</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="control-group">

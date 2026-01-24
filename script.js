@@ -19,6 +19,8 @@ function initializeApp() {
     const transparentBg = document.getElementById('transparent-bg');
     const textAlign = document.getElementById('text-align');
     const downloadBtn = document.getElementById('download-btn');
+    const emojiBtn = document.getElementById('emoji-btn');
+    const emojiPanel = document.getElementById('emoji-panel');
 
     // Verificar que todos los elementos existan
     if (!textInput || !svg || !textStyle || !textColor || !bgColor || 
@@ -53,7 +55,7 @@ function initializeApp() {
         const opacity = bgOpacity.value / 100;
         // Leer el valor del slider correctamente
         const sliderValue = fontSize.value;
-        const size = Math.max(parseInt(sliderValue, 10) || 180, 15);
+        const size = Math.max(parseInt(sliderValue, 10) || 60, 15);
         const isBold = bold.checked;
         const isItalic = italic.checked;
         const isTransparent = transparentBg.checked;
@@ -420,6 +422,34 @@ function initializeApp() {
     
     // Event listener para el botón de descarga
     downloadBtn.addEventListener('click', downloadAsPNG);
+
+    // Funcionalidad del selector de emojis
+    if (emojiBtn && emojiPanel && textInput) {
+        // Toggle del panel de emojis
+        emojiBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isVisible = emojiPanel.style.display === 'block';
+            emojiPanel.style.display = isVisible ? 'none' : 'block';
+        });
+
+        // Cerrar el panel al hacer clic fuera
+        document.addEventListener('click', function(e) {
+            if (!emojiPanel.contains(e.target) && e.target !== emojiBtn) {
+                emojiPanel.style.display = 'none';
+            }
+        });
+
+        // Agregar emoji al final del texto
+        const emojiItems = emojiPanel.querySelectorAll('.emoji-item');
+        emojiItems.forEach(item => {
+            item.addEventListener('click', function() {
+                const emoji = this.textContent;
+                textInput.value += emoji;
+                textInput.dispatchEvent(new Event('input'));
+                renderText();
+            });
+        });
+    }
 
     // Inicializar
     renderText();
