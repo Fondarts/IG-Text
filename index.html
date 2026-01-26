@@ -13,7 +13,8 @@
             
             <div class="input-section">
                 <label for="text-input">Write your text:</label>
-                <textarea id="text-input" placeholder="Type your text here..."></textarea>
+                <textarea id="text-input" placeholder="Type your text here...">First line
+Second line ✌️</textarea>
             </div>
 
             <div class="control-group">
@@ -667,6 +668,15 @@
                 </div>
 
                 <div class="control-group">
+                    <label for="safe-zones-select">Safe zones:</label>
+                    <select id="safe-zones-select">
+                        <option value="none">None</option>
+                        <option value="organic">Organic</option>
+                        <option value="paid">Paid</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
                     <label for="text-align">Text alignment:</label>
                     <select id="text-align">
                         <option value="left">Left</option>
@@ -681,14 +691,16 @@
             </div>
         </div>
 
-        <div class="preview-panel">
-            <h2>Preview</h2>
-            <div class="story-container">
-                <div class="story-background">
-                    <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div class="preview-panel">
+                <h2>Preview</h2>
+                <div class="story-container">
+                    <div class="story-background">
+                        <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+                        <img id="safe-zone-organic" class="safe-zone-overlay" src="Safezones/Organic%20safe%20zones%20Reels.png" alt="Organic Safe Zone" style="display: none;">
+                        <img id="safe-zone-paid" class="safe-zone-overlay" src="Safezones/paid%20safezone.png" alt="Paid Safe Zone" style="display: none;">
+                    </div>
                 </div>
             </div>
-        </div>
     </div>
 
     <script src="script.js"></script>

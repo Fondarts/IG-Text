@@ -17,17 +17,31 @@ function initializeApp() {
     const bold = document.getElementById('bold');
     const italic = document.getElementById('italic');
     const transparentBg = document.getElementById('transparent-bg');
+    const safeZonesSelect = document.getElementById('safe-zones-select');
+    const safeZoneOrganic = document.getElementById('safe-zone-organic');
+    const safeZonePaid = document.getElementById('safe-zone-paid');
     const textAlign = document.getElementById('text-align');
     const downloadBtn = document.getElementById('download-btn');
     const emojiBtn = document.getElementById('emoji-btn');
     const emojiPanel = document.getElementById('emoji-panel');
 
-    // Verificar que todos los elementos existan
+    // Verificar que todos los elementos esenciales existan
     if (!textInput || !svg || !textStyle || !textColor || !bgColor || 
         !bgOpacity || !opacityValue || !fontSize || !fontSizeValue || 
         !bold || !italic || !transparentBg || !textAlign || !downloadBtn) {
-        console.error('Error: Not all DOM elements were found');
+        console.error('Error: Not all essential DOM elements were found');
         return;
+    }
+    
+    // Verificar elementos opcionales (safe zones)
+    if (!safeZonesSelect) {
+        console.warn('Safe zones select not found');
+    }
+    if (!safeZoneOrganic) {
+        console.warn('Safe zone organic image not found');
+    }
+    if (!safeZonePaid) {
+        console.warn('Safe zone paid image not found');
     }
 
     const padding = 15;
@@ -120,7 +134,8 @@ function initializeApp() {
             const rect = storyContainer.getBoundingClientRect();
             if (rect.width > 0) {
                 referenceWidth = rect.width - 40; // Restar padding
-                referenceHeight = rect.height - 40;
+                // Mantener la proporción 9:16 exacta
+                referenceHeight = (referenceWidth * 16) / 9;
             }
         }
 
@@ -399,6 +414,35 @@ function initializeApp() {
         // Actualizar valores de UI
         fontSizeValue.textContent = `${size}px`;
         opacityValue.textContent = `${Math.round(opacity * 100)}%`;
+
+        // Mostrar/ocultar safe zones overlay
+        updateSafeZones();
+    }
+
+    // Función para mostrar/ocultar las safe zones overlay
+    function updateSafeZones() {
+        if (!safeZonesSelect) {
+            console.error('safeZonesSelect not found');
+            return;
+        }
+        
+        const selectedValue = safeZonesSelect.value;
+        
+        // Ocultar todas primero
+        if (safeZoneOrganic) {
+            safeZoneOrganic.style.display = 'none';
+        }
+        if (safeZonePaid) {
+            safeZonePaid.style.display = 'none';
+        }
+        
+        // Mostrar la seleccionada
+        if (selectedValue === 'organic' && safeZoneOrganic) {
+            safeZoneOrganic.style.display = 'block';
+        } else if (selectedValue === 'paid' && safeZonePaid) {
+            safeZonePaid.style.display = 'block';
+        }
+        // Si es 'none', no mostrar ninguna (ya están ocultas)
     }
 
     // Event listeners
@@ -411,6 +455,7 @@ function initializeApp() {
     bold.addEventListener('change', renderText);
     italic.addEventListener('change', renderText);
     transparentBg.addEventListener('change', renderText);
+    safeZonesSelect.addEventListener('change', updateSafeZones);
     textAlign.addEventListener('change', renderText);
 
     // Función para descargar el SVG como PNG
