@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Instagram Stories Text Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -620,7 +623,14 @@ Second line ✌️</textarea>
                         <option value="neon">Neon</option>
                         <option value="typewriter">Typewriter</option>
                         <option value="strong">Strong</option>
+                        <option value="custom">Custom Font</option>
                     </select>
+                </div>
+
+                <div class="control-group" id="custom-font-group" style="display: none;">
+                    <label for="custom-font-file">Upload custom font:</label>
+                    <input type="file" id="custom-font-file" accept=".ttf,.otf,.woff,.woff2">
+                    <small style="display: block; margin-top: 5px; color: #666; font-size: 12px;">Supported formats: TTF, OTF, WOFF, WOFF2</small>
                 </div>
 
                 <div class="control-group-inline">

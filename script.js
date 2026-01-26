@@ -8,6 +8,8 @@ function initializeApp() {
     const textInput = document.getElementById('text-input');
     const svg = document.getElementById('text-svg');
     const textStyle = document.getElementById('text-style');
+    const customFontGroup = document.getElementById('custom-font-group');
+    const customFontFile = document.getElementById('custom-font-file');
     const textColor = document.getElementById('text-color');
     const bgColor = document.getElementById('bg-color');
     const bgOpacity = document.getElementById('bg-opacity');
@@ -26,7 +28,7 @@ function initializeApp() {
     const emojiPanel = document.getElementById('emoji-panel');
 
     // Verificar que todos los elementos esenciales existan
-    if (!textInput || !svg || !textStyle || !textColor || !bgColor || 
+    if (!textInput || !svg || !textStyle || !customFontGroup || !customFontFile || !textColor || !bgColor || 
         !bgOpacity || !opacityValue || !fontSize || !fontSizeValue || 
         !bold || !italic || !transparentBg || !textAlign || !downloadBtn) {
         console.error('Error: Not all essential DOM elements were found');
@@ -47,14 +49,66 @@ function initializeApp() {
     const padding = 15;
     const borderRadius = 10;
 
+    // Variable para almacenar el nombre de la fuente personalizada
+    let customFontName = null;
+
+    // Función para cargar una fuente personalizada
+    function loadCustomFont(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const fontData = e.target.result;
+                const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remover extensión
+                const fontName = `CustomFont-${fileName}`;
+                
+                // Determinar el formato
+                let format = 'truetype';
+                if (file.name.endsWith('.otf')) format = 'opentype';
+                else if (file.name.endsWith('.woff')) format = 'woff';
+                else if (file.name.endsWith('.woff2')) format = 'woff2';
+                
+                // Crear URL del blob
+                const blob = new Blob([fontData], { type: `font/${format}` });
+                const url = URL.createObjectURL(blob);
+                
+                // Eliminar fuente anterior si existe
+                const existingStyle = document.getElementById('custom-font-style');
+                if (existingStyle) {
+                    existingStyle.remove();
+                }
+                
+                // Crear nuevo estilo para la fuente
+                const style = document.createElement('style');
+                style.id = 'custom-font-style';
+                style.textContent = `
+                    @font-face {
+                        font-family: '${fontName}';
+                        src: url('${url}') format('${format}');
+                        font-weight: normal;
+                        font-style: normal;
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                customFontName = fontName;
+                resolve(fontName);
+            };
+            
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
     // Función para obtener la fuente según el estilo
     function getFontFamily(style) {
         const fonts = {
-            classic: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            modern: '"Helvetica Neue", Arial, sans-serif',
-            neon: '"Arial Black", Arial, sans-serif',
+            classic: 'Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            modern: 'Aveny-T, sans-serif',
+            neon: 'CosmopolitanScript, sans-serif',
             typewriter: '"Courier New", monospace',
-            strong: 'Impact, "Arial Black", sans-serif'
+            strong: '"Bebas Neue", Impact, "Arial Black", sans-serif',
+            custom: customFontName ? `${customFontName}, sans-serif` : 'Arial, sans-serif'
         };
         return fonts[style] || fonts.classic;
     }
@@ -447,7 +501,30 @@ function initializeApp() {
 
     // Event listeners
     textInput.addEventListener('input', renderText);
-    textStyle.addEventListener('change', renderText);
+    textStyle.addEventListener('change', function() {
+        // Mostrar/ocultar el grupo de fuente personalizada
+        if (textStyle.value === 'custom') {
+            customFontGroup.style.display = 'block';
+        } else {
+            customFontGroup.style.display = 'none';
+        }
+        renderText();
+    });
+    
+    customFontFile.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            loadCustomFont(file)
+                .then(() => {
+                    console.log('Custom font loaded:', customFontName);
+                    renderText();
+                })
+                .catch(error => {
+                    console.error('Error loading custom font:', error);
+                    alert('Error loading font file. Please make sure it\'s a valid font file (TTF, OTF, WOFF, or WOFF2).');
+                });
+        }
+    });
     textColor.addEventListener('input', renderText);
     bgColor.addEventListener('input', renderText);
     bgOpacity.addEventListener('input', renderText);
