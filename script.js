@@ -322,11 +322,11 @@ function initializeApp() {
                 svg.removeChild(measureElement);
                 
                 // Ajuste para emojis: los emojis SVG tienden a tener espacio interno
-                // asimétrico (más espacio a la derecha). Compensamos ~20% del tamaño
+                // asimétrico (más espacio a la derecha). Compensamos ~28% del tamaño
                 // por cada emoji para lograr padding visual uniforme
                 const emojiMatches = line.match(emojiRegex);
                 if (emojiMatches && emojiMatches.length > 0) {
-                    textWidth -= emojiMatches.length * (size * 0.20);
+                    textWidth -= emojiMatches.length * (size * 0.28);
                 }
             } else {
                 // Para texto sin emojis, usar getBBox directamente
@@ -813,124 +813,129 @@ function initializeApp() {
         }
         
         try {
-            // Obtener el SVG y sus dimensiones
-            const svgElement = svg.cloneNode(true);
-            
-            // Asegurar que el SVG tenga los atributos necesarios
+            // Obtener el viewBox original
             const viewBox = svg.getAttribute('viewBox');
             if (!viewBox) {
                 alert('Error: The SVG does not have a viewBox defined.');
                 return;
             }
             
-            const svgData = new XMLSerializer().serializeToString(svgElement);
-            console.log('SVG serializado, tamaño:', svgData.length);
+            const viewBoxValues = viewBox.split(' ');
+            const vbWidth = parseFloat(viewBoxValues[2]);
+            const vbHeight = parseFloat(viewBoxValues[3]);
             
-            // Agregar el namespace si no está presente
-            if (!svgData.includes('xmlns')) {
-                const svgWithNS = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-                const svgBlob = new Blob([svgWithNS], { type: 'image/svg+xml;charset=utf-8' });
-                const svgUrl = URL.createObjectURL(svgBlob);
-                processSVGToPNG(svgUrl, viewBox);
-            } else {
-                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                const svgUrl = URL.createObjectURL(svgBlob);
-                processSVGToPNG(svgUrl, viewBox);
+            // Obtener el bounding box del path (fondo) para saber qué área recortar
+            let pathBBox = null;
+            const paths = svg.querySelectorAll('path');
+            if (paths.length > 0) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                paths.forEach(path => {
+                    try {
+                        const bbox = path.getBBox();
+                        minX = Math.min(minX, bbox.x);
+                        minY = Math.min(minY, bbox.y);
+                        maxX = Math.max(maxX, bbox.x + bbox.width);
+                        maxY = Math.max(maxY, bbox.y + bbox.height);
+                    } catch (e) {}
+                });
+                if (minX !== Infinity) {
+                    pathBBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+                }
             }
+            
+            // Clonar el SVG sin modificar el viewBox original
+            const svgElement = svg.cloneNode(true);
+            svgElement.setAttribute('width', vbWidth);
+            svgElement.setAttribute('height', vbHeight);
+            svgElement.setAttribute('viewBox', viewBox);
+            svgElement.style.transform = '';
+            svgElement.style.visibility = 'visible';
+            
+            // Ajustar posición Y del texto para compensar diferencia de renderizado en canvas
+            // MANTENEMOS dominant-baseline, solo ajustamos Y hacia arriba
+            const textElements = svgElement.querySelectorAll('text');
+            textElements.forEach(textEl => {
+                const currentY = parseFloat(textEl.getAttribute('y')) || 0;
+                const style = textEl.getAttribute('style') || '';
+                const fontSizeMatch = style.match(/font-size:\s*(\d+)px/);
+                const fontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 33;
+                
+                // Pequeño ajuste hacia arriba (valor positivo resta de Y)
+                const adjustment = fontSize * 0.08;
+                textEl.setAttribute('y', currentY - adjustment);
+            });
+            
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            let finalSvgData = svgData;
+            if (!svgData.includes('xmlns')) {
+                finalSvgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            
+            const svgBlob = new Blob([finalSvgData], { type: 'image/svg+xml;charset=utf-8' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            
+            processSVGToPNG(svgUrl, vbWidth, vbHeight, pathBBox);
         } catch (error) {
             console.error('Error al descargar PNG:', error);
             alert('Error downloading image: ' + error.message);
         }
     }
     
-    function processSVGToPNG(svgUrl, viewBox) {
-        // Crear una imagen para cargar el SVG
+    function processSVGToPNG(svgUrl, vbWidth, vbHeight, pathBBox) {
         const img = new Image();
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
         
         img.onload = function() {
-            console.log('Imagen SVG cargada');
+            // Escala para alta resolución
+            const scale = 1080 / vbWidth;
+            const canvasWidth = Math.round(vbWidth * scale);
+            const canvasHeight = Math.round(vbHeight * scale);
             
-            // Obtener las dimensiones del viewBox
-            const viewBoxValues = viewBox.split(' ');
-            const svgWidth = parseFloat(viewBoxValues[2]);
-            const svgHeight = parseFloat(viewBoxValues[3]);
+            // Crear canvas con el tamaño del viewBox escalado
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvasWidth;
+            tempCanvas.height = canvasHeight;
             
-            console.log('Dimensiones viewBox:', svgWidth, 'x', svgHeight);
+            // Dibujar el SVG completo en el canvas
+            tempCtx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
             
-            // Instagram Stories estándar: 1080x1920 (9:16 aspect ratio)
-            // Calcular el tamaño de exportación manteniendo la proporción del viewBox
-            const targetWidth = 1080; // Ancho estándar para Instagram Stories
-            const aspectRatio = svgHeight / svgWidth; // Proporción del viewBox (debería ser ~1.78 para 9:16)
-            const targetHeight = Math.round(targetWidth * aspectRatio);
+            // Si tenemos el bounding box del path, usarlo para recortar
+            // Esto garantiza que el recorte coincida exactamente con el fondo visible
+            let cropX, cropY, cropWidth, cropHeight;
             
-            console.log('Dimensiones de exportación:', targetWidth, 'x', targetHeight);
-            
-            // Configurar el canvas temporal con las dimensiones de alta resolución
-            tempCanvas.width = targetWidth;
-            tempCanvas.height = targetHeight;
-            
-            // Dibujar la imagen escalada al tamaño completo del canvas temporal
-            tempCtx.drawImage(img, 0, 0, targetWidth, targetHeight);
-            
-            // Obtener los datos de píxeles para detectar el área con contenido
-            const imageData = tempCtx.getImageData(0, 0, targetWidth, targetHeight);
-            const data = imageData.data;
-            
-            // Encontrar los bordes del contenido (no transparente)
-            let minX = targetWidth;
-            let minY = targetHeight;
-            let maxX = 0;
-            let maxY = 0;
-            
-            // Buscar píxeles no transparentes
-            for (let y = 0; y < targetHeight; y++) {
-                for (let x = 0; x < targetWidth; x++) {
-                    const index = (y * targetWidth + x) * 4;
-                    const alpha = data[index + 3]; // Canal alpha
-                    
-                    if (alpha > 0) { // Si el píxel no es completamente transparente
-                        minX = Math.min(minX, x);
-                        minY = Math.min(minY, y);
-                        maxX = Math.max(maxX, x);
-                        maxY = Math.max(maxY, y);
-                    }
-                }
+            if (pathBBox) {
+                // Convertir coordenadas del viewBox a coordenadas del canvas
+                cropX = Math.floor(pathBBox.x * scale);
+                cropY = Math.floor(pathBBox.y * scale);
+                cropWidth = Math.ceil(pathBBox.width * scale);
+                cropHeight = Math.ceil(pathBBox.height * scale);
+            } else {
+                // Fallback: usar todo el canvas
+                cropX = 0;
+                cropY = 0;
+                cropWidth = canvasWidth;
+                cropHeight = canvasHeight;
             }
             
-            // Si no se encontró contenido, usar las dimensiones completas
-            if (minX >= maxX || minY >= maxY) {
-                minX = 0;
-                minY = 0;
-                maxX = targetWidth;
-                maxY = targetHeight;
-            }
+            // Asegurar que no nos salgamos del canvas
+            cropX = Math.max(0, cropX);
+            cropY = Math.max(0, cropY);
+            cropWidth = Math.min(cropWidth, canvasWidth - cropX);
+            cropHeight = Math.min(cropHeight, canvasHeight - cropY);
             
-            // Agregar un pequeño padding (opcional, puedes ajustarlo o eliminarlo)
-            const padding = 0; // Sin padding adicional
-            minX = Math.max(0, minX - padding);
-            minY = Math.max(0, minY - padding);
-            maxX = Math.min(targetWidth, maxX + padding);
-            maxY = Math.min(targetHeight, maxY + padding);
+            console.log('Recorte:', cropX, cropY, cropWidth, 'x', cropHeight);
             
-            // Calcular las dimensiones del contenido
-            const contentWidth = maxX - minX;
-            const contentHeight = maxY - minY;
-            
-            console.log('Área de contenido:', minX, minY, contentWidth, 'x', contentHeight);
-            
-            // Crear un nuevo canvas con las dimensiones exactas del contenido
+            // Crear canvas final con las dimensiones del recorte
             const finalCanvas = document.createElement('canvas');
             const finalCtx = finalCanvas.getContext('2d');
-            finalCanvas.width = contentWidth;
-            finalCanvas.height = contentHeight;
+            finalCanvas.width = cropWidth;
+            finalCanvas.height = cropHeight;
             
-            // Copiar solo el área con contenido del canvas temporal al canvas final
+            // Copiar la región del path al canvas final
             finalCtx.drawImage(
                 tempCanvas,
-                minX, minY, contentWidth, contentHeight, // Área fuente
-                0, 0, contentWidth, contentHeight        // Área destino
+                cropX, cropY, cropWidth, cropHeight,
+                0, 0, cropWidth, cropHeight
             );
             
             // Convertir el canvas final a PNG y descargar
