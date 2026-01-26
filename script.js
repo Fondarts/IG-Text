@@ -830,14 +830,23 @@ function initializeApp() {
             const svgWidth = parseFloat(viewBoxValues[2]);
             const svgHeight = parseFloat(viewBoxValues[3]);
             
-            console.log('Dimensiones:', svgWidth, 'x', svgHeight);
+            console.log('Dimensiones viewBox:', svgWidth, 'x', svgHeight);
             
-            // Configurar el canvas con las dimensiones del SVG
-            canvas.width = svgWidth;
-            canvas.height = svgHeight;
+            // Instagram Stories estándar: 1080x1920 (9:16 aspect ratio)
+            // Calcular el tamaño de exportación manteniendo la proporción del viewBox
+            const targetWidth = 1080; // Ancho estándar para Instagram Stories
+            const aspectRatio = svgHeight / svgWidth; // Proporción del viewBox (debería ser ~1.78 para 9:16)
+            const targetHeight = Math.round(targetWidth * aspectRatio);
             
-            // Dibujar la imagen en el canvas
-            ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+            console.log('Dimensiones de exportación:', targetWidth, 'x', targetHeight);
+            
+            // Configurar el canvas con las dimensiones de alta resolución
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            
+            // Dibujar la imagen escalada al tamaño completo del canvas
+            // Esto asegura que el PNG exportado tenga la resolución correcta
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
             
             // Convertir el canvas a PNG y descargar
             canvas.toBlob(function(blob) {
