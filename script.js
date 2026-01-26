@@ -425,10 +425,12 @@ function initializeApp() {
                 
                 // PADDING UNIFORME: Usar exactamente el mismo padding en todos los lados
                 // El padding horizontal es exactamente 'padding' desde el borde del texto
-                // Para el vertical, las letras ocupan aproximadamente 50-60% de la altura nominal
-                // Pero visualmente el padding superior/inferior parece mayor que el horizontal
-                // Reducimos el factor para compensar y lograr uniformidad visual
-                const visualHalfHeight = size * 0.22; // Factor reducido para padding visual uniforme
+                // Para el vertical, consideramos las astas ascendentes y descendentes:
+                // - Ascendentes (b, d, h, l): ~80% del size arriba del baseline
+                // - Descendentes (g, p, y, j): ~20% del size debajo del baseline
+                // El centro visual está aproximadamente a 30% desde arriba
+                // Usamos un factor mayor para incluir todo el espacio vertical del texto
+                const visualHalfHeight = size * 0.45; // Factor aumentado para incluir ascendentes/descendentes
                 const halfLineHeight = lineMetric.height / 2;
                 const isFirstLine = (lnum === 0);
                 const isLastLine = (lnum === lineMetrics.length - 1);
