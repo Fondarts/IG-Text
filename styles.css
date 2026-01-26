@@ -302,8 +302,26 @@ body {
     margin-top: 8px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
     z-index: 1000;
-    max-height: 300px;
+    max-height: 500px;
     overflow-y: auto;
+}
+
+.emoji-section {
+    margin-bottom: 20px;
+}
+
+.emoji-section:last-child {
+    margin-bottom: 0;
+}
+
+.emoji-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #e0e0e0;
 }
 
 .emoji-grid {

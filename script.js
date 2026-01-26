@@ -31,7 +31,7 @@ function initializeApp() {
     }
 
     const padding = 15;
-    const borderRadius = 25;
+    const borderRadius = 10;
 
     // Función para obtener la fuente según el estilo
     function getFontFamily(style) {
@@ -97,7 +97,7 @@ function initializeApp() {
         const opacity = bgOpacity.value / 100;
         // Leer el valor del slider correctamente
         const sliderValue = fontSize.value;
-        const size = Math.max(parseInt(sliderValue, 10) || 60, 15);
+        const size = Math.max(parseInt(sliderValue, 10) || 33, 25);
         const isBold = bold.checked;
         const isItalic = italic.checked;
         const isTransparent = transparentBg.checked;
@@ -227,37 +227,21 @@ function initializeApp() {
             const bgRgba = hexToRgba(backgroundColor, opacity);
             const r = borderRadius;
             
-            // Variables para rastrear la línea anterior (como en el código Android)
-            let prevWidth = -1;
-            let prevLeft = -1;
-            let prevRight = -1;
-            let prevBottom = -1;
-            let prevTop = -1;
-            
-            // Construir el path línea por línea, exactamente como en el código de Stack Overflow
-            lineMetrics.forEach((lineMetric, lnum) => {
+            // Pre-calculate all line dimensions first
+            const lineRects = lineMetrics.map((lineMetric, lnum) => {
                 const textWidth = lineMetric.width;
-                const width = textWidth + 2 * padding;
+                let width = textWidth + 2 * padding;
                 
-                // Calcular posición según alineación basándose en la posición X del texto
-                // El texto ya está posicionado correctamente en lineMetric.x
                 let shiftLeft, shiftRight;
                 if (alignment === 'right') {
-                    // ALIGN_END / Gravity.RIGHT - el texto termina en lineMetric.x
-                    // text-anchor='end' significa que lineMetric.x es el punto final del texto
                     shiftRight = lineMetric.x + padding;
                     shiftLeft = Math.max(0, shiftRight - width);
                 } else if (alignment === 'left') {
-                    // ALIGN_START / Gravity.LEFT - el texto comienza en lineMetric.x
-                    // text-anchor='start' significa que lineMetric.x es el punto inicial del texto
                     shiftLeft = Math.max(0, lineMetric.x - padding);
                     shiftRight = shiftLeft + width;
                 } else {
-                    // ALIGN_CENTER / Gravity.CENTER - el texto está centrado en lineMetric.x
-                    // text-anchor='middle' significa que lineMetric.x es el centro del texto
                     shiftLeft = Math.max(0, lineMetric.x - (width / 2));
                     shiftRight = Math.min(referenceWidth, shiftLeft + width);
-                    // Ajustar shiftLeft si shiftRight fue limitado
                     if (shiftRight === referenceWidth) {
                         shiftLeft = referenceWidth - width;
                     }
@@ -266,91 +250,136 @@ function initializeApp() {
                 const top = lineMetric.y - lineMetric.height / 2;
                 const bottom = lineMetric.y + lineMetric.height / 2;
                 
-                if (lnum === 0) {
-                    // Primera línea: dibujar rectángulo redondeado simple
-                    const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    const pathData = `M ${shiftLeft + r},${top} L ${shiftRight - r},${top} A ${r},${r} 0 0 1 ${shiftRight},${top + r} L ${shiftRight},${bottom - r} A ${r},${r} 0 0 1 ${shiftRight - r},${bottom} L ${shiftLeft + r},${bottom} A ${r},${r} 0 0 1 ${shiftLeft},${bottom - r} L ${shiftLeft},${top + r} A ${r},${r} 0 0 1 ${shiftLeft + r},${top} Z`;
-                    pathElement.setAttribute('d', pathData);
-                    pathElement.setAttribute('fill', bgRgba);
-                    svg.appendChild(pathElement);
-                } else {
-                    // Líneas siguientes: construir path con curvas cúbicas (exactamente como en el código de Stack Overflow)
-                    const difference = width - prevWidth;
-                    const diff = -Math.sign(difference) * Math.min(2 * r, Math.abs(difference / 2)) / 2;
-                    
-                    const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    const pathSegments = [];
-                    
-                    // Mover al punto inicial (prevLeft, prevBottom - radius)
-                    pathSegments.push(`M ${prevLeft},${prevBottom - r}`);
-                    
-                    // Curva cúbica 1 (solo si no es ALIGN_START / Gravity.LEFT)
-                    if (alignment !== 'left') {
-                        pathSegments.push(`C ${prevLeft},${prevBottom - r}, ${prevLeft},${top}, ${prevLeft + diff},${top}`);
+                return { width, shiftLeft, shiftRight, top, bottom };
+            });
+            
+            // Apply "same width" rule: if difference is less than threshold, use previous line's width
+            const sameWidthThreshold = r * 3;
+            for (let i = 1; i < lineRects.length; i++) {
+                const curr = lineRects[i];
+                const prev = lineRects[i - 1];
+                const widthDiff = Math.abs(curr.width - prev.width);
+                
+                if (widthDiff < sameWidthThreshold && widthDiff > 0 && curr.width < prev.width) {
+                    const newWidth = prev.width;
+                    if (alignment === 'right') {
+                        curr.shiftLeft = curr.shiftRight - newWidth;
+                    } else if (alignment === 'left') {
+                        curr.shiftRight = curr.shiftLeft + newWidth;
                     } else {
-                        pathSegments.push(`L ${prevLeft},${prevBottom + r}`);
+                        const center = (curr.shiftLeft + curr.shiftRight) / 2;
+                        curr.shiftLeft = center - newWidth / 2;
+                        curr.shiftRight = center + newWidth / 2;
                     }
+                    curr.width = newWidth;
+                }
+            }
+            
+            // Draw background as a single continuous path with curves at corners
+            if (lineRects.length === 1) {
+                // Single line: simple rounded rectangle
+                const rect = lineRects[0];
+                const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const pathData = `M ${rect.shiftLeft + r},${rect.top} L ${rect.shiftRight - r},${rect.top} A ${r},${r} 0 0 1 ${rect.shiftRight},${rect.top + r} L ${rect.shiftRight},${rect.bottom - r} A ${r},${r} 0 0 1 ${rect.shiftRight - r},${rect.bottom} L ${rect.shiftLeft + r},${rect.bottom} A ${r},${r} 0 0 1 ${rect.shiftLeft},${rect.bottom - r} L ${rect.shiftLeft},${rect.top + r} A ${r},${r} 0 0 1 ${rect.shiftLeft + r},${rect.top} Z`;
+                pathElement.setAttribute('d', pathData);
+                pathElement.setAttribute('fill', bgRgba);
+                svg.appendChild(pathElement);
+            } else {
+                // Multiple lines: build a single continuous path tracing the outer contour
+                const pathSegments = [];
+                const first = lineRects[0];
+                const last = lineRects[lineRects.length - 1];
+                
+                // Start at top-left of first line
+                pathSegments.push(`M ${first.shiftLeft + r},${first.top}`);
+                
+                // Top edge of first line
+                pathSegments.push(`L ${first.shiftRight - r},${first.top}`);
+                pathSegments.push(`A ${r},${r} 0 0 1 ${first.shiftRight},${first.top + r}`);
+                
+                // Go DOWN the right side
+                for (let i = 0; i < lineRects.length; i++) {
+                    const curr = lineRects[i];
+                    const next = i < lineRects.length - 1 ? lineRects[i + 1] : null;
                     
-                    // Línea hasta rect.left - diff, rect.top
-                    pathSegments.push(`L ${shiftLeft - diff},${top}`);
-                    
-                    // Curva cúbica 2
-                    pathSegments.push(`C ${shiftLeft - diff},${top}, ${shiftLeft},${top}, ${shiftLeft},${top + r}`);
-                    
-                    // Línea hacia abajo
-                    pathSegments.push(`L ${shiftLeft},${bottom - r}`);
-                    
-                    // Curva cúbica 3
-                    pathSegments.push(`C ${shiftLeft},${bottom - r}, ${shiftLeft},${bottom}, ${shiftLeft + r},${bottom}`);
-                    
-                    // Línea inferior
-                    pathSegments.push(`L ${shiftRight - r},${bottom}`);
-                    
-                    // Curva cúbica 4
-                    pathSegments.push(`C ${shiftRight - r},${bottom}, ${shiftRight},${bottom}, ${shiftRight},${bottom - r}`);
-                    
-                    // Línea hacia arriba
-                    pathSegments.push(`L ${shiftRight},${top + r}`);
-                    
-                    // Curva cúbica 5 (solo si no es ALIGN_END / Gravity.RIGHT)
-                    if (alignment !== 'right') {
-                        pathSegments.push(`C ${shiftRight},${top + r}, ${shiftRight},${top}, ${shiftRight + diff},${top}`);
-                        pathSegments.push(`L ${prevRight - diff},${top}`);
-                        pathSegments.push(`C ${prevRight - diff},${top}, ${prevRight},${top}, ${prevRight},${prevBottom - r}`);
-                    } else {
-                        pathSegments.push(`L ${prevRight},${prevBottom - r}`);
+                    if (next) {
+                        const diff = next.shiftRight - curr.shiftRight;
+                        // midY is the transition point between lines
+                        const midY = (curr.bottom + next.top) / 2;
+                        
+                        if (Math.abs(diff) < 0.5) {
+                            // Same right edge - continue straight down
+                        } else if (diff > 0) {
+                            // Next line is WIDER on right - convex corner (outward)
+                            pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
+                            pathSegments.push(`A ${r},${r} 0 0 0 ${curr.shiftRight + r},${midY}`);
+                            pathSegments.push(`L ${next.shiftRight - r},${midY}`);
+                            pathSegments.push(`A ${r},${r} 0 0 1 ${next.shiftRight},${midY + r}`);
+                        } else {
+                            // Next line is NARROWER on right - concave corner (inward)
+                            pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
+                            pathSegments.push(`A ${r},${r} 0 0 1 ${curr.shiftRight - r},${midY}`);
+                            pathSegments.push(`L ${next.shiftRight + r},${midY}`);
+                            pathSegments.push(`A ${r},${r} 0 0 0 ${next.shiftRight},${midY + r}`);
+                        }
                     }
-                    
-                    // Curva cúbica 7
-                    pathSegments.push(`C ${prevRight},${prevBottom - r}, ${prevRight},${prevBottom}, ${prevRight - r},${prevBottom}`);
-                    
-                    // Línea hacia la izquierda
-                    pathSegments.push(`L ${prevLeft + r},${prevBottom}`);
-                    
-                    // Curva cúbica 8
-                    pathSegments.push(`C ${prevLeft + r},${prevBottom}, ${prevLeft},${prevBottom}, ${prevLeft},${top - r}`);
-                    pathSegments.push('Z');
-                    
-                    pathElement.setAttribute('d', pathSegments.join(' '));
-                    pathElement.setAttribute('fill', bgRgba);
-                    svg.appendChild(pathElement);
                 }
                 
-                // Actualizar valores previos (exactamente como en el código de Stack Overflow)
-                prevWidth = width;
-                prevLeft = shiftLeft;
-                prevRight = shiftRight;
-                prevBottom = bottom;
-                prevTop = top;
-            });
+                // Bottom-right corner of last line
+                pathSegments.push(`L ${last.shiftRight},${last.bottom - r}`);
+                pathSegments.push(`A ${r},${r} 0 0 1 ${last.shiftRight - r},${last.bottom}`);
+                
+                // Bottom edge of last line
+                pathSegments.push(`L ${last.shiftLeft + r},${last.bottom}`);
+                pathSegments.push(`A ${r},${r} 0 0 1 ${last.shiftLeft},${last.bottom - r}`);
+                
+                // Go UP the left side
+                for (let i = lineRects.length - 1; i >= 0; i--) {
+                    const curr = lineRects[i];
+                    const prev = i > 0 ? lineRects[i - 1] : null;
+                    
+                    if (prev) {
+                        const diff = prev.shiftLeft - curr.shiftLeft;
+                        // midY is the transition point between lines
+                        const midY = (prev.bottom + curr.top) / 2;
+                        
+                        if (Math.abs(diff) < 0.5) {
+                            // Same left edge - continue straight up
+                        } else if (diff > 0) {
+                            // Previous line is NARROWER on left - concave corner (inward)
+                            pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
+                            pathSegments.push(`A ${r},${r} 0 0 1 ${curr.shiftLeft + r},${midY}`);
+                            pathSegments.push(`L ${prev.shiftLeft - r},${midY}`);
+                            pathSegments.push(`A ${r},${r} 0 0 0 ${prev.shiftLeft},${midY - r}`);
+                        } else {
+                            // Previous line is WIDER on left - convex corner (outward)
+                            pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
+                            pathSegments.push(`A ${r},${r} 0 0 0 ${curr.shiftLeft - r},${midY}`);
+                            pathSegments.push(`L ${prev.shiftLeft + r},${midY}`);
+                            pathSegments.push(`A ${r},${r} 0 0 1 ${prev.shiftLeft},${midY - r}`);
+                        }
+                    }
+                }
+                
+                // Top-left corner of first line
+                pathSegments.push(`L ${first.shiftLeft},${first.top + r}`);
+                pathSegments.push(`A ${r},${r} 0 0 1 ${first.shiftLeft + r},${first.top}`);
+                pathSegments.push('Z');
+                
+                const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathElement.setAttribute('d', pathSegments.join(' '));
+                pathElement.setAttribute('fill', bgRgba);
+                svg.appendChild(pathElement);
+            }
         }
 
         // Renderizar texto
         lineMetrics.forEach((lineMetric) => {
             const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             textElement.setAttribute('x', lineMetric.x);
-            textElement.setAttribute('y', lineMetric.y);
-            textElement.setAttribute('dominant-baseline', 'middle');
+            // Adjust Y position slightly up to better center emojis (they tend to sit lower)
+            textElement.setAttribute('y', lineMetric.y - size * 0.05);
+            textElement.setAttribute('dominant-baseline', 'central');
             
             // Establecer text-anchor según la alineación
             if (alignment === 'center') {
