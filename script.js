@@ -114,7 +114,7 @@ function initializeApp() {
     // Función para obtener la fuente según el estilo
     function getFontFamily(style) {
         const fonts = {
-            classic: 'Aveny-T, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            classic: 'Proxima-Nova-Semibold, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             modern: 'Aveny-T, sans-serif',
             neon: 'CosmopolitanScript, sans-serif',
             typewriter: '"Courier New", monospace',
