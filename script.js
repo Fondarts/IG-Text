@@ -661,6 +661,10 @@ function initializeApp() {
                 parts.forEach((part, index) => {
                     const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
                     tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+                    // Bajar emojis 2 píxeles
+                    if (part.isEmoji) {
+                        tspan.setAttribute('dy', '2');
+                    }
                     tspan.textContent = part.text;
                     textElement.appendChild(tspan);
                 });
