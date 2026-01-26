@@ -23,6 +23,13 @@ function initializeApp() {
     const safeZoneOrganic = document.getElementById('safe-zone-organic');
     const safeZonePaid = document.getElementById('safe-zone-paid');
     const textAlign = document.getElementById('text-align');
+    const lineHeight = document.getElementById('line-height');
+    const lineHeightValue = document.getElementById('line-height-value');
+    const letterSpacing = document.getElementById('letter-spacing');
+    const letterSpacingValue = document.getElementById('letter-spacing-value');
+    const bgImageFile = document.getElementById('bg-image-file');
+    const removeBgImage = document.getElementById('remove-bg-image');
+    const bgImagePreview = document.getElementById('bg-image-preview');
     const downloadBtn = document.getElementById('download-btn');
     const emojiBtn = document.getElementById('emoji-btn');
     const emojiPanel = document.getElementById('emoji-panel');
@@ -30,7 +37,8 @@ function initializeApp() {
     // Verificar que todos los elementos esenciales existan
     if (!textInput || !svg || !textStyle || !customFontGroup || !customFontFile || !textColor || !bgColor || 
         !bgOpacity || !opacityValue || !fontSize || !fontSizeValue || 
-        !bold || !italic || !transparentBg || !textAlign || !downloadBtn) {
+        !bold || !italic || !transparentBg || !textAlign || !downloadBtn ||
+        !lineHeight || !lineHeightValue || !letterSpacing || !letterSpacingValue) {
         console.error('Error: Not all essential DOM elements were found');
         return;
     }
@@ -46,8 +54,12 @@ function initializeApp() {
         console.warn('Safe zone paid image not found');
     }
 
-    const padding = 15;
+    // Padding uniforme en TODOS los lados (como Instagram)
+    const padding = 14;
     const borderRadius = 10;
+    
+    // Variable para la imagen de fondo
+    let backgroundImageUrl = null;
 
     // Variable para almacenar el nombre de la fuente personalizada
     let customFontName = null;
@@ -115,7 +127,7 @@ function initializeApp() {
 
 
     // Función para dividir texto en líneas que quepan en el ancho disponible
-    function wrapText(text, maxWidth, fontFamily, fontSize, fontWeight, fontStyle) {
+    function wrapText(text, maxWidth, fontFamily, fontSize, fontWeight, fontStyle, letterSpacingPx) {
         const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         tempGroup.style.visibility = 'hidden';
         tempGroup.style.opacity = '0';
@@ -132,7 +144,7 @@ function initializeApp() {
             testElement.setAttribute('x', '0');
             testElement.setAttribute('y', '0');
             testElement.textContent = testLine;
-            testElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${fontSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle};`);
+            testElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${fontSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
             tempGroup.appendChild(testElement);
             
             const bbox = testElement.getBBox();
@@ -170,6 +182,8 @@ function initializeApp() {
         const isItalic = italic.checked;
         const isTransparent = transparentBg.checked;
         const alignment = textAlign.value;
+        const lineHeightMultiplier = lineHeight.value / 100; // Convert 80-200 to 0.8-2.0
+        const letterSpacingPx = parseInt(letterSpacing.value, 10) || 0;
 
         // Limpiar SVG
         svg.innerHTML = '';
@@ -208,7 +222,7 @@ function initializeApp() {
             if (line.trim() === '' && manualLines.length === 1) {
                 wrappedLines.push(' ');
             } else if (line.trim() !== '') {
-                const wrapped = wrapText(line.trim(), availableWidth - (padding * 2), fontFamily, size, fontWeight, fontStyle);
+                const wrapped = wrapText(line.trim(), availableWidth - (padding * 2), fontFamily, size, fontWeight, fontStyle, letterSpacingPx);
                 wrappedLines.push(...wrapped);
             }
         });
@@ -230,7 +244,7 @@ function initializeApp() {
             textElement.setAttribute('x', '0');
             textElement.setAttribute('y', '0');
             textElement.textContent = line || ' ';
-            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle};`);
+            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
             tempGroup.appendChild(textElement);
             lineElements.push(textElement);
         });
@@ -238,22 +252,90 @@ function initializeApp() {
         // Agregar temporalmente al SVG para medir
         svg.appendChild(tempGroup);
         
-        // Medir cada línea usando getBBox
-        let currentY = padding;
+        // Calcular la altura de línea consistente basada en el tamaño de fuente y el multiplicador
+        const calculatedLineHeight = size * lineHeightMultiplier;
+        
+        // Regex para detectar emojis reales (no variation selectors)
+        const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu;
+        
+        // Regex para variation selectors y otros modificadores invisibles
+        // Incluye: Variation Selectors, Zero Width Joiner, etc.
+        const invisibleModifiersRegex = /[\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu;
+        
+        // Función para detectar si una cadena contiene emojis
+        function containsEmoji(str) {
+            return emojiRegex.test(str);
+        }
+        
+        // Función para remover modificadores invisibles para medición precisa
+        function stripInvisibleModifiers(str) {
+            return str.replace(invisibleModifiersRegex, '');
+        }
+        
+        // Medir cada línea - crear elementos de medición sin modificadores invisibles
+        // para obtener el ancho visual real
+        // NOTA: Ahora el posicionamiento del texto NO incluye el padding del fondo
+        // El padding se aplicará uniformemente cuando se dibuje el fondo
+        let currentY = 0;
         wrappedLines.forEach((line, index) => {
             const textElement = lineElements[index];
-            const bbox = textElement.getBBox();
-            const lineHeight = bbox.height || size * 1.2;
             
+            // Usar altura consistente para todas las líneas
+            const lineBoxHeight = calculatedLineHeight;
+            
+            // Detectar si la línea contiene emojis
+            const hasEmoji = containsEmoji(line);
+            
+            // Para obtener el ancho visual correcto, medimos el texto sin modificadores invisibles
+            // Esto es porque los variation selectors agregan ancho en getBBox pero son invisibles
+            let textWidth;
+            
+            if (hasEmoji) {
+                // Crear un elemento temporal con el texto sin modificadores para medir
+                const strippedLine = stripInvisibleModifiers(line);
+                const measureElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                measureElement.setAttribute('x', '0');
+                measureElement.setAttribute('y', '0');
+                measureElement.textContent = strippedLine;
+                measureElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+                svg.appendChild(measureElement);
+                
+                const strippedBBox = measureElement.getBBox();
+                textWidth = strippedBBox.width;
+                
+                svg.removeChild(measureElement);
+                
+                // Ajuste para emojis: los emojis SVG tienden a tener espacio interno
+                // asimétrico (más espacio a la derecha). Compensamos ~20% del tamaño
+                // por cada emoji para lograr padding visual uniforme
+                const emojiMatches = line.match(emojiRegex);
+                if (emojiMatches && emojiMatches.length > 0) {
+                    textWidth -= emojiMatches.length * (size * 0.20);
+                }
+            } else {
+                // Para texto sin emojis, usar getBBox directamente
+                const bbox = textElement.getBBox();
+                textWidth = bbox.width;
+            }
+            
+            // Asegurarse de que el ancho no sea menor que un mínimo razonable
+            const minTextWidth = size * 0.5;
+            if (textWidth < minTextWidth) {
+                textWidth = minTextWidth;
+            }
+            
+            // lineMetric.y es el centro de la caja de línea, SIN padding
+            // El padding se agrega uniformemente cuando se dibuja el fondo
             lineMetrics.push({
                 text: line,
-                width: bbox.width,
-                height: lineHeight,
-                x: padding,
-                y: currentY + lineHeight / 2
+                width: textWidth,
+                height: lineBoxHeight,
+                x: 0, // Se calculará según alineación
+                y: currentY + lineBoxHeight / 2, // Centro de la línea
+                hasEmoji: hasEmoji
             });
             
-            currentY += lineHeight;
+            currentY += lineBoxHeight;
         });
 
         // Remover el grupo temporal
@@ -269,15 +351,17 @@ function initializeApp() {
         const totalHeight = lineMetrics.reduce((sum, m) => sum + m.height, 0) + (padding * 2);
         
         // Recalcular posiciones X según la alineación
-        // Usar referenceWidth para las posiciones para que el texto no se corte
+        // NOTA: Las posiciones del texto ahora son relativas al área de contenido (sin padding)
+        // El padding se aplicará uniformemente cuando se dibuje el fondo y se posicione el texto
         lineMetrics.forEach((metric) => {
             if (alignment === 'center') {
+                // Para centrado, usamos el centro del área de referencia
                 metric.x = referenceWidth / 2;
             } else if (alignment === 'right') {
-                // Alineación derecha: texto pegado al borde derecho con padding
+                // Alineación derecha: el texto termina en referenceWidth - padding
                 metric.x = referenceWidth - padding;
             } else {
-                // Izquierda: texto pegado al borde izquierdo con padding
+                // Izquierda: el texto empieza en padding
                 metric.x = padding;
             }
         });
@@ -297,27 +381,70 @@ function initializeApp() {
             const r = borderRadius;
             
             // Pre-calculate all line dimensions first
+            // NOTA: lineMetric.y es el centro de cada línea de texto
+            // El padding horizontal ya está incluido en el ancho
+            // El padding vertical SOLO se aplica al borde EXTERNO superior e inferior del bloque completo
             const lineRects = lineMetrics.map((lineMetric, lnum) => {
                 const textWidth = lineMetric.width;
+                // Ancho total del fondo = ancho del texto + padding uniforme en ambos lados
                 let width = textWidth + 2 * padding;
                 
                 let shiftLeft, shiftRight;
                 if (alignment === 'right') {
+                    // Alineación derecha: el texto termina en lineMetric.x
+                    // El fondo debe extenderse padding más a la derecha
                     shiftRight = lineMetric.x + padding;
-                    shiftLeft = Math.max(0, shiftRight - width);
+                    shiftLeft = shiftRight - width;
                 } else if (alignment === 'left') {
-                    shiftLeft = Math.max(0, lineMetric.x - padding);
+                    // Alineación izquierda: el texto empieza en lineMetric.x
+                    // El fondo debe empezar padding antes
+                    shiftLeft = lineMetric.x - padding;
                     shiftRight = shiftLeft + width;
                 } else {
-                    shiftLeft = Math.max(0, lineMetric.x - (width / 2));
-                    shiftRight = Math.min(referenceWidth, shiftLeft + width);
-                    if (shiftRight === referenceWidth) {
-                        shiftLeft = referenceWidth - width;
-                    }
+                    // Centro: el texto está centrado en lineMetric.x
+                    // El fondo debe estar igualmente centrado
+                    shiftLeft = lineMetric.x - (width / 2);
+                    shiftRight = lineMetric.x + (width / 2);
                 }
                 
-                const top = lineMetric.y - lineMetric.height / 2;
-                const bottom = lineMetric.y + lineMetric.height / 2;
+                // Asegurar que no se salga del área visible
+                if (shiftLeft < 0) {
+                    shiftLeft = 0;
+                    shiftRight = width;
+                }
+                if (shiftRight > referenceWidth) {
+                    shiftRight = referenceWidth;
+                    shiftLeft = referenceWidth - width;
+                }
+                
+                // Calcular posiciones verticales del fondo
+                // lineMetric.y es el centro vertical de la línea de texto (sin incluir padding)
+                // El texto se renderiza en y + padding (ver más abajo)
+                // Por lo tanto, el centro real del texto en el SVG es: lineMetric.y + padding
+                const textCenterY = lineMetric.y + padding;
+                
+                // PADDING UNIFORME: Usar exactamente el mismo padding en todos los lados
+                // El padding horizontal es exactamente 'padding' desde el borde del texto
+                // Para el vertical, las letras ocupan aproximadamente 50-60% de la altura nominal
+                // Pero visualmente el padding superior/inferior parece mayor que el horizontal
+                // Reducimos el factor para compensar y lograr uniformidad visual
+                const visualHalfHeight = size * 0.22; // Factor reducido para padding visual uniforme
+                const halfLineHeight = lineMetric.height / 2;
+                const isFirstLine = (lnum === 0);
+                const isLastLine = (lnum === lineMetrics.length - 1);
+                
+                // Calcular los bordes de la caja de línea
+                // Para líneas intermedias, usamos halfLineHeight para que no se solapen
+                let top = textCenterY - halfLineHeight;
+                let bottom = textCenterY + halfLineHeight;
+                
+                // Para los bordes externos, usamos padding EXACTAMENTE igual al horizontal
+                if (isFirstLine) {
+                    top = textCenterY - visualHalfHeight - padding;
+                }
+                if (isLastLine) {
+                    bottom = textCenterY + visualHalfHeight + padding;
+                }
                 
                 return { width, shiftLeft, shiftRight, top, bottom };
             });
@@ -442,12 +569,14 @@ function initializeApp() {
             }
         }
 
-        // Renderizar texto
+        // Renderizar texto con posicionamiento preciso
         lineMetrics.forEach((lineMetric) => {
             const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             textElement.setAttribute('x', lineMetric.x);
-            // Adjust Y position slightly up to better center emojis (they tend to sit lower)
-            textElement.setAttribute('y', lineMetric.y - size * 0.05);
+            
+            // Usar 'central' para el baseline vertical - centra el texto matemáticamente
+            // Sumamos padding a la posición Y porque lineMetric.y no incluye el offset del padding
+            textElement.setAttribute('y', lineMetric.y + padding);
             textElement.setAttribute('dominant-baseline', 'central');
             
             // Establecer text-anchor según la alineación
@@ -460,7 +589,7 @@ function initializeApp() {
             }
             
             textElement.setAttribute('fill', txtColor);
-            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle};`);
+            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
             textElement.textContent = lineMetric.text;
             svg.appendChild(textElement);
         });
@@ -468,6 +597,8 @@ function initializeApp() {
         // Actualizar valores de UI
         fontSizeValue.textContent = `${size}px`;
         opacityValue.textContent = `${Math.round(opacity * 100)}%`;
+        lineHeightValue.textContent = lineHeightMultiplier.toFixed(1);
+        letterSpacingValue.textContent = `${letterSpacingPx}px`;
 
         // Mostrar/ocultar safe zones overlay
         updateSafeZones();
@@ -508,7 +639,34 @@ function initializeApp() {
         } else {
             customFontGroup.style.display = 'none';
         }
-        renderText();
+        // Forzar actualización del preview
+        // Usar requestAnimationFrame para asegurar que el DOM se actualice
+        requestAnimationFrame(() => {
+            // Verificar si la fuente está cargada antes de renderizar
+            const style = textStyle.value;
+            const fontFamily = getFontFamily(style);
+            
+            // Si es una fuente de Google Fonts, verificar que esté cargada
+            if (style === 'classic' || style === 'strong') {
+                // Verificar si la fuente está cargada
+                if (document.fonts && document.fonts.check) {
+                    const fontLoaded = document.fonts.check(`16px ${fontFamily}`);
+                    if (!fontLoaded) {
+                        // Esperar a que la fuente se cargue, con timeout de seguridad
+                        Promise.race([
+                            document.fonts.ready,
+                            new Promise(resolve => setTimeout(resolve, 500))
+                        ]).then(() => {
+                            renderText();
+                        });
+                        return;
+                    }
+                }
+            }
+            
+            // Renderizar inmediatamente
+            renderText();
+        });
     });
     
     customFontFile.addEventListener('change', function(e) {
@@ -534,6 +692,33 @@ function initializeApp() {
     transparentBg.addEventListener('change', renderText);
     safeZonesSelect.addEventListener('change', updateSafeZones);
     textAlign.addEventListener('change', renderText);
+    lineHeight.addEventListener('input', renderText);
+    letterSpacing.addEventListener('input', renderText);
+    
+    // Event listeners para imagen de fondo
+    if (bgImageFile && removeBgImage && bgImagePreview) {
+        bgImageFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    backgroundImageUrl = event.target.result;
+                    bgImagePreview.src = backgroundImageUrl;
+                    bgImagePreview.style.display = 'block';
+                    removeBgImage.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        removeBgImage.addEventListener('click', function() {
+            backgroundImageUrl = null;
+            bgImagePreview.src = '';
+            bgImagePreview.style.display = 'none';
+            removeBgImage.style.display = 'none';
+            bgImageFile.value = '';
+        });
+    }
 
     // Función para descargar el SVG como PNG
     function downloadAsPNG() {

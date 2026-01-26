@@ -659,16 +659,32 @@ Second line ✌️</textarea>
                     </div>
                 </div>
 
-                <div class="control-group">
-                    <label>
-                        <input type="checkbox" id="bold"> Bold
-                    </label>
+                <div class="control-group-inline">
+                    <div class="control-group">
+                        <label for="line-height">Line height:</label>
+                        <input type="range" id="line-height" min="80" max="200" value="120">
+                        <span id="line-height-value">1.2</span>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="letter-spacing">Letter spacing:</label>
+                        <input type="range" id="letter-spacing" min="-5" max="20" value="0">
+                        <span id="letter-spacing-value">0px</span>
+                    </div>
                 </div>
 
-                <div class="control-group">
-                    <label>
-                        <input type="checkbox" id="italic"> Italic
-                    </label>
+                <div class="control-group-inline">
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="bold"> Bold
+                        </label>
+                    </div>
+
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="italic"> Italic
+                        </label>
+                    </div>
                 </div>
 
                 <div class="control-group">
@@ -696,6 +712,12 @@ Second line ✌️</textarea>
                 </div>
 
                 <div class="control-group">
+                    <label for="bg-image-file">Background image (optional):</label>
+                    <input type="file" id="bg-image-file" accept="image/*">
+                    <button type="button" id="remove-bg-image" class="remove-bg-btn" style="display: none;">Remove background</button>
+                </div>
+
+                <div class="control-group">
                     <button id="download-btn" class="download-btn">Download PNG</button>
                 </div>
             </div>
@@ -705,6 +727,7 @@ Second line ✌️</textarea>
                 <h2>Preview</h2>
                 <div class="story-container">
                     <div class="story-background">
+                        <img id="bg-image-preview" class="bg-image-preview" style="display: none;" alt="Background">
                         <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg"></svg>
                         <img id="safe-zone-organic" class="safe-zone-overlay" src="Safezones/Organic%20safe%20zones%20Reels.png" alt="Organic Safe Zone" style="display: none;">
                         <img id="safe-zone-paid" class="safe-zone-overlay" src="Safezones/paid%20safezone.png" alt="Paid Safe Zone" style="display: none;">
