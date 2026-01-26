@@ -1,23 +1,23 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generador de Texto Instagram Stories</title>
+    <title>Instagram Stories Text Generator</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <div class="editor-panel">
-            <h1>Editor de Texto Instagram Stories <span style="font-size: 0.6em; color: #667eea; font-weight: normal;">V23</span></h1>
+            <h1>Instagram Stories Text Editor <span style="font-size: 0.6em; color: #667eea; font-weight: normal;">V25</span></h1>
             
             <div class="input-section">
-                <label for="text-input">Escribe tu texto:</label>
-                <textarea id="text-input" placeholder="Escribe aquí tu texto..."></textarea>
+                <label for="text-input">Write your text:</label>
+                <textarea id="text-input" placeholder="Type your text here..."></textarea>
             </div>
 
             <div class="control-group">
-                <label>Agregar emoji:</label>
+                <label>Add emoji:</label>
                 <div class="emoji-selector">
                     <button type="button" id="emoji-btn" class="emoji-btn">😀 Emojis</button>
                     <div id="emoji-panel" class="emoji-panel" style="display: none;">
@@ -95,7 +95,7 @@
 
             <div class="controls">
                 <div class="control-group">
-                    <label for="text-style">Estilo de texto:</label>
+                    <label for="text-style">Text style:</label>
                     <select id="text-style">
                         <option value="classic">Classic</option>
                         <option value="modern">Modern</option>
@@ -107,25 +107,25 @@
 
                 <div class="control-group-inline">
                     <div class="control-group">
-                        <label for="text-color">Color del texto:</label>
+                        <label for="text-color">Text color:</label>
                         <input type="color" id="text-color" value="#ffffff">
                     </div>
 
                     <div class="control-group">
-                        <label for="bg-color">Color de fondo:</label>
+                        <label for="bg-color">Background color:</label>
                         <input type="color" id="bg-color" value="#000000">
                     </div>
                 </div>
 
                 <div class="control-group-inline">
                     <div class="control-group">
-                        <label for="bg-opacity">Opacidad del fondo:</label>
+                        <label for="bg-opacity">Background opacity:</label>
                         <input type="range" id="bg-opacity" min="0" max="100" value="100">
                         <span id="opacity-value">100%</span>
                     </div>
 
                     <div class="control-group">
-                        <label for="font-size">Tamaño de fuente:</label>
+                        <label for="font-size">Font size:</label>
                         <input type="range" id="font-size" min="15" max="300" value="60">
                         <span id="font-size-value">60px</span>
                     </div>
@@ -133,39 +133,39 @@
 
                 <div class="control-group">
                     <label>
-                        <input type="checkbox" id="bold"> Negrita
+                        <input type="checkbox" id="bold"> Bold
                     </label>
                 </div>
 
                 <div class="control-group">
                     <label>
-                        <input type="checkbox" id="italic"> Cursiva
+                        <input type="checkbox" id="italic"> Italic
                     </label>
                 </div>
 
                 <div class="control-group">
                     <label>
-                        <input type="checkbox" id="transparent-bg"> Fondo transparente
+                        <input type="checkbox" id="transparent-bg"> Transparent background
                     </label>
                 </div>
 
                 <div class="control-group">
-                    <label for="text-align">Alineación del texto:</label>
+                    <label for="text-align">Text alignment:</label>
                     <select id="text-align">
-                        <option value="left">Izquierda</option>
-                        <option value="center" selected>Centro</option>
-                        <option value="right">Derecha</option>
+                        <option value="left">Left</option>
+                        <option value="center" selected>Center</option>
+                        <option value="right">Right</option>
                     </select>
                 </div>
 
                 <div class="control-group">
-                    <button id="download-btn" class="download-btn">Descargar PNG</button>
+                    <button id="download-btn" class="download-btn">Download PNG</button>
                 </div>
             </div>
         </div>
 
         <div class="preview-panel">
-            <h2>Vista Previa</h2>
+            <h2>Preview</h2>
             <div class="story-container">
                 <div class="story-background">
                     <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg"></svg>

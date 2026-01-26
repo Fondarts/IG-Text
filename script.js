@@ -26,7 +26,7 @@ function initializeApp() {
     if (!textInput || !svg || !textStyle || !textColor || !bgColor || 
         !bgOpacity || !opacityValue || !fontSize || !fontSizeValue || 
         !bold || !italic || !transparentBg || !textAlign || !downloadBtn) {
-        console.error('Error: No se encontraron todos los elementos del DOM');
+        console.error('Error: Not all DOM elements were found');
         return;
     }
 
@@ -46,9 +46,51 @@ function initializeApp() {
     }
 
 
+    // Función para dividir texto en líneas que quepan en el ancho disponible
+    function wrapText(text, maxWidth, fontFamily, fontSize, fontWeight, fontStyle) {
+        const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        tempGroup.style.visibility = 'hidden';
+        tempGroup.style.opacity = '0';
+        tempGroup.style.position = 'absolute';
+        svg.appendChild(tempGroup);
+
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+
+        words.forEach((word, index) => {
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const testElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            testElement.setAttribute('x', '0');
+            testElement.setAttribute('y', '0');
+            testElement.textContent = testLine;
+            testElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${fontSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle};`);
+            tempGroup.appendChild(testElement);
+            
+            const bbox = testElement.getBBox();
+            const testWidth = bbox.width;
+            
+            if (testWidth > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+            
+            tempGroup.removeChild(testElement);
+        });
+
+        if (currentLine) {
+            lines.push(currentLine);
+        }
+
+        svg.removeChild(tempGroup);
+        return lines;
+    }
+
     // Función para renderizar el texto con efecto escalera
     function renderText() {
-        const text = textInput.value || 'Tu texto aparecerá aquí';
+        const text = textInput.value || 'Your text will appear here';
         const style = textStyle.value;
         const txtColor = textColor.value;
         const backgroundColor = bgColor.value;
@@ -61,11 +103,6 @@ function initializeApp() {
         const isTransparent = transparentBg.checked;
         const alignment = textAlign.value;
 
-        // Dividir el texto en líneas
-        const lines = text.split('\n').filter(line => line.trim() !== '' || text.split('\n').length === 1);
-        
-        if (lines.length === 0) return;
-
         // Limpiar SVG
         svg.innerHTML = '';
 
@@ -73,6 +110,41 @@ function initializeApp() {
         const fontWeight = isBold ? 'bold' : '600';
         const fontStyle = isItalic ? 'italic' : 'normal';
         const fontFamily = getFontFamily(style);
+
+        // Obtener el ancho disponible del contenedor y configurar viewBox temporal
+        const storyContainer = svg.closest('.story-container');
+        let referenceWidth = 400; // Ancho de referencia fijo (mismo que max-width del contenedor)
+        let referenceHeight = (referenceWidth * 16) / 9; // Altura de referencia basada en aspect-ratio 9:16 (vertical)
+        
+        if (storyContainer) {
+            const rect = storyContainer.getBoundingClientRect();
+            if (rect.width > 0) {
+                referenceWidth = rect.width - 40; // Restar padding
+                referenceHeight = rect.height - 40;
+            }
+        }
+
+        // Configurar viewBox temporal para que las mediciones funcionen correctamente
+        svg.setAttribute('viewBox', `0 0 ${referenceWidth} ${referenceHeight}`);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+        let availableWidth = referenceWidth - (padding * 2);
+
+        // Dividir el texto en líneas manuales primero
+        const manualLines = text.split('\n');
+        const wrappedLines = [];
+
+        // Aplicar ajuste de líneas a cada línea manual
+        manualLines.forEach((line) => {
+            if (line.trim() === '' && manualLines.length === 1) {
+                wrappedLines.push(' ');
+            } else if (line.trim() !== '') {
+                const wrapped = wrapText(line.trim(), availableWidth - (padding * 2), fontFamily, size, fontWeight, fontStyle);
+                wrappedLines.push(...wrapped);
+            }
+        });
+
+        if (wrappedLines.length === 0) return;
 
         // Crear un grupo temporal para medir el texto
         const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -84,7 +156,7 @@ function initializeApp() {
         const lineElements = [];
         const lineMetrics = [];
 
-        lines.forEach((line) => {
+        wrappedLines.forEach((line) => {
             const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             textElement.setAttribute('x', '0');
             textElement.setAttribute('y', '0');
@@ -99,7 +171,7 @@ function initializeApp() {
         
         // Medir cada línea usando getBBox
         let currentY = padding;
-        lines.forEach((line, index) => {
+        wrappedLines.forEach((line, index) => {
             const textElement = lineElements[index];
             const bbox = textElement.getBBox();
             const lineHeight = bbox.height || size * 1.2;
@@ -123,43 +195,23 @@ function initializeApp() {
         lineMetrics.forEach(m => {
             tempMaxWidth = Math.max(tempMaxWidth, m.width);
         });
-        const maxWidth = tempMaxWidth + (padding * 2);
+        // Asegurar que maxWidth no exceda el ancho disponible del contenedor
+        const maxWidth = Math.min(tempMaxWidth + (padding * 2), referenceWidth);
         const totalHeight = lineMetrics.reduce((sum, m) => sum + m.height, 0) + (padding * 2);
         
         // Recalcular posiciones X según la alineación
-        // El padding es uniforme en todas las direcciones
+        // Usar referenceWidth para las posiciones para que el texto no se corte
         lineMetrics.forEach((metric) => {
             if (alignment === 'center') {
-                metric.x = maxWidth / 2;
+                metric.x = referenceWidth / 2;
             } else if (alignment === 'right') {
                 // Alineación derecha: texto pegado al borde derecho con padding
-                metric.x = maxWidth - padding;
+                metric.x = referenceWidth - padding;
             } else {
                 // Izquierda: texto pegado al borde izquierdo con padding
                 metric.x = padding;
             }
         });
-
-        // Ajustar viewBox del SVG con tamaño fijo para mantener el tamaño del texto constante
-        // El SVG tiene un tamaño fijo en CSS (width: calc(100% - 40px))
-        // Usamos un viewBox fijo basado en un tamaño de referencia constante
-        // para que el texto siempre se vea al mismo tamaño visual
-        const storyContainer = svg.closest('.story-container');
-        let referenceWidth = 400; // Ancho de referencia fijo (mismo que max-width del contenedor)
-        let referenceHeight = (referenceWidth * 16) / 9; // Altura de referencia basada en aspect-ratio 9:16 (vertical)
-        
-        if (storyContainer) {
-            const rect = storyContainer.getBoundingClientRect();
-            if (rect.width > 0) {
-                referenceWidth = rect.width - 40; // Restar padding
-                referenceHeight = rect.height - 40;
-            }
-        }
-        
-        // Usar un viewBox fijo para mantener el tamaño visual del texto constante
-        // El contenido se escalará dentro de este viewBox fijo
-        svg.setAttribute('viewBox', `0 0 ${referenceWidth} ${referenceHeight}`);
-        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
         // Convertir color de fondo a rgba
         function hexToRgba(hex, alpha) {
@@ -187,21 +239,28 @@ function initializeApp() {
                 const textWidth = lineMetric.width;
                 const width = textWidth + 2 * padding;
                 
-                // Calcular posición según alineación
-                // El padding debe ser uniforme en todas las direcciones
+                // Calcular posición según alineación basándose en la posición X del texto
+                // El texto ya está posicionado correctamente en lineMetric.x
                 let shiftLeft, shiftRight;
                 if (alignment === 'right') {
-                    // ALIGN_END / Gravity.RIGHT - padding uniforme a la derecha
-                    shiftLeft = maxWidth - width;
-                    shiftRight = maxWidth;
+                    // ALIGN_END / Gravity.RIGHT - el texto termina en lineMetric.x
+                    // text-anchor='end' significa que lineMetric.x es el punto final del texto
+                    shiftRight = lineMetric.x + padding;
+                    shiftLeft = Math.max(0, shiftRight - width);
                 } else if (alignment === 'left') {
-                    // ALIGN_START / Gravity.LEFT - padding uniforme a la izquierda
-                    shiftLeft = 0;
-                    shiftRight = width;
+                    // ALIGN_START / Gravity.LEFT - el texto comienza en lineMetric.x
+                    // text-anchor='start' significa que lineMetric.x es el punto inicial del texto
+                    shiftLeft = Math.max(0, lineMetric.x - padding);
+                    shiftRight = shiftLeft + width;
                 } else {
-                    // ALIGN_CENTER / Gravity.CENTER
-                    shiftLeft = (maxWidth - width) / 2;
-                    shiftRight = maxWidth - shiftLeft;
+                    // ALIGN_CENTER / Gravity.CENTER - el texto está centrado en lineMetric.x
+                    // text-anchor='middle' significa que lineMetric.x es el centro del texto
+                    shiftLeft = Math.max(0, lineMetric.x - (width / 2));
+                    shiftRight = Math.min(referenceWidth, shiftLeft + width);
+                    // Ajustar shiftLeft si shiftRight fue limitado
+                    if (shiftRight === referenceWidth) {
+                        shiftLeft = referenceWidth - width;
+                    }
                 }
                 
                 const top = lineMetric.y - lineMetric.height / 2;
@@ -331,7 +390,7 @@ function initializeApp() {
         
         // Verificar que el SVG tenga contenido
         if (!svg || svg.children.length === 0) {
-            alert('No hay texto para descargar. Por favor, escribe algo primero.');
+            alert('No text to download. Please write something first.');
             return;
         }
         
@@ -342,7 +401,7 @@ function initializeApp() {
             // Asegurar que el SVG tenga los atributos necesarios
             const viewBox = svg.getAttribute('viewBox');
             if (!viewBox) {
-                alert('Error: El SVG no tiene viewBox definido.');
+                alert('Error: The SVG does not have a viewBox defined.');
                 return;
             }
             
@@ -362,7 +421,7 @@ function initializeApp() {
             }
         } catch (error) {
             console.error('Error al descargar PNG:', error);
-            alert('Error al descargar la imagen: ' + error.message);
+            alert('Error downloading image: ' + error.message);
         }
     }
     
@@ -392,7 +451,7 @@ function initializeApp() {
             // Convertir el canvas a PNG y descargar
             canvas.toBlob(function(blob) {
                 if (!blob) {
-                    alert('Error al generar el blob de la imagen.');
+                    alert('Error generating image blob.');
                     URL.revokeObjectURL(svgUrl);
                     return;
                 }
@@ -413,7 +472,7 @@ function initializeApp() {
         
         img.onerror = function(e) {
             console.error('Error al cargar el SVG:', e);
-            alert('Error al generar la imagen. Por favor, intenta de nuevo.');
+            alert('Error generating image. Please try again.');
             URL.revokeObjectURL(svgUrl);
         };
         
