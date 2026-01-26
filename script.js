@@ -590,7 +590,57 @@ function initializeApp() {
             
             textElement.setAttribute('fill', txtColor);
             textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-            textElement.textContent = lineMetric.text;
+            
+            // Dividir el texto en segmentos (texto normal y emojis) para aplicar diferentes tamaños
+            const text = lineMetric.text;
+            const emojiSize = size * 0.80; // Emojis 20% más pequeños
+            
+            // Solo dividir si la línea contiene emojis
+            if (lineMetric.hasEmoji) {
+                // Dividir el texto usando el regex de emojis
+                const parts = [];
+                let lastIndex = 0;
+                let match;
+                
+                // Resetear el regex
+                emojiRegex.lastIndex = 0;
+                
+                while ((match = emojiRegex.exec(text)) !== null) {
+                    // Agregar texto antes del emoji
+                    if (match.index > lastIndex) {
+                        parts.push({
+                            text: text.substring(lastIndex, match.index),
+                            isEmoji: false
+                        });
+                    }
+                    // Agregar el emoji
+                    parts.push({
+                        text: match[0],
+                        isEmoji: true
+                    });
+                    lastIndex = match.index + match[0].length;
+                }
+                
+                // Agregar texto restante después del último emoji
+                if (lastIndex < text.length) {
+                    parts.push({
+                        text: text.substring(lastIndex),
+                        isEmoji: false
+                    });
+                }
+                
+                // Renderizar cada parte con su tamaño correspondiente
+                parts.forEach((part, index) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+                    tspan.textContent = part.text;
+                    textElement.appendChild(tspan);
+                });
+            } else {
+                // Si no hay emojis, renderizar normalmente
+                textElement.textContent = text;
+            }
+            
             svg.appendChild(textElement);
         });
 
