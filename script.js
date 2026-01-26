@@ -842,8 +842,8 @@ function initializeApp() {
     function processSVGToPNG(svgUrl, viewBox) {
         // Crear una imagen para cargar el SVG
         const img = new Image();
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
         
         img.onload = function() {
             console.log('Imagen SVG cargada');
@@ -863,16 +863,74 @@ function initializeApp() {
             
             console.log('Dimensiones de exportación:', targetWidth, 'x', targetHeight);
             
-            // Configurar el canvas con las dimensiones de alta resolución
-            canvas.width = targetWidth;
-            canvas.height = targetHeight;
+            // Configurar el canvas temporal con las dimensiones de alta resolución
+            tempCanvas.width = targetWidth;
+            tempCanvas.height = targetHeight;
             
-            // Dibujar la imagen escalada al tamaño completo del canvas
-            // Esto asegura que el PNG exportado tenga la resolución correcta
-            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+            // Dibujar la imagen escalada al tamaño completo del canvas temporal
+            tempCtx.drawImage(img, 0, 0, targetWidth, targetHeight);
             
-            // Convertir el canvas a PNG y descargar
-            canvas.toBlob(function(blob) {
+            // Obtener los datos de píxeles para detectar el área con contenido
+            const imageData = tempCtx.getImageData(0, 0, targetWidth, targetHeight);
+            const data = imageData.data;
+            
+            // Encontrar los bordes del contenido (no transparente)
+            let minX = targetWidth;
+            let minY = targetHeight;
+            let maxX = 0;
+            let maxY = 0;
+            
+            // Buscar píxeles no transparentes
+            for (let y = 0; y < targetHeight; y++) {
+                for (let x = 0; x < targetWidth; x++) {
+                    const index = (y * targetWidth + x) * 4;
+                    const alpha = data[index + 3]; // Canal alpha
+                    
+                    if (alpha > 0) { // Si el píxel no es completamente transparente
+                        minX = Math.min(minX, x);
+                        minY = Math.min(minY, y);
+                        maxX = Math.max(maxX, x);
+                        maxY = Math.max(maxY, y);
+                    }
+                }
+            }
+            
+            // Si no se encontró contenido, usar las dimensiones completas
+            if (minX >= maxX || minY >= maxY) {
+                minX = 0;
+                minY = 0;
+                maxX = targetWidth;
+                maxY = targetHeight;
+            }
+            
+            // Agregar un pequeño padding (opcional, puedes ajustarlo o eliminarlo)
+            const padding = 0; // Sin padding adicional
+            minX = Math.max(0, minX - padding);
+            minY = Math.max(0, minY - padding);
+            maxX = Math.min(targetWidth, maxX + padding);
+            maxY = Math.min(targetHeight, maxY + padding);
+            
+            // Calcular las dimensiones del contenido
+            const contentWidth = maxX - minX;
+            const contentHeight = maxY - minY;
+            
+            console.log('Área de contenido:', minX, minY, contentWidth, 'x', contentHeight);
+            
+            // Crear un nuevo canvas con las dimensiones exactas del contenido
+            const finalCanvas = document.createElement('canvas');
+            const finalCtx = finalCanvas.getContext('2d');
+            finalCanvas.width = contentWidth;
+            finalCanvas.height = contentHeight;
+            
+            // Copiar solo el área con contenido del canvas temporal al canvas final
+            finalCtx.drawImage(
+                tempCanvas,
+                minX, minY, contentWidth, contentHeight, // Área fuente
+                0, 0, contentWidth, contentHeight        // Área destino
+            );
+            
+            // Convertir el canvas final a PNG y descargar
+            finalCanvas.toBlob(function(blob) {
                 if (!blob) {
                     alert('Error generating image blob.');
                     URL.revokeObjectURL(svgUrl);
