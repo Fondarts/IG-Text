@@ -277,6 +277,17 @@ function initializeApp() {
             return str.replace(invisibleModifiersRegex, '');
         }
         
+        // Funciones para detectar astas ascendentes y descendentes
+        // Ascendentes: b, d, f, h, k, l, t (y mayúsculas)
+        // Descendentes: g, j, p, q, y
+        function hasAscenders(str) {
+            return /[bdfhkltBDFHKLTÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜA-Z0-9]/.test(str);
+        }
+        
+        function hasDescenders(str) {
+            return /[gjpqyQ]/.test(str);
+        }
+        
         // Medir cada línea - crear elementos de medición sin modificadores invisibles
         // para obtener el ancho visual real
         // NOTA: Ahora el posicionamiento del texto NO incluye el padding del fondo
@@ -430,25 +441,37 @@ function initializeApp() {
                 
                 // PADDING UNIFORME: Usar exactamente el mismo padding en todos los lados
                 // El padding horizontal es exactamente 'padding' desde el borde del texto
-                // Para el vertical, las letras ocupan aproximadamente 50-60% de la altura nominal
-                // Pero visualmente el padding superior/inferior parece mayor que el horizontal
-                // Reducimos el factor para compensar y lograr uniformidad visual
-                const visualHalfHeight = size * 0.22; // Factor reducido para padding visual uniforme
+                // Para el vertical, ajustamos según las astas ascendentes y descendentes
                 const halfLineHeight = lineMetric.height / 2;
                 const isFirstLine = (lnum === 0);
                 const isLastLine = (lnum === lineMetrics.length - 1);
+                
+                // Detectar astas en la línea actual
+                const lineText = lineMetric.text;
+                const lineHasAscenders = hasAscenders(lineText);
+                const lineHasDescenders = hasDescenders(lineText);
+                
+                // Factor base para la mitad visual del texto (sin astas)
+                // Letras minúsculas sin astas ocupan ~45% del tamaño de fuente
+                const baseHalfHeight = size * 0.22;
+                
+                // Ajuste adicional para astas (las astas agregan ~30% extra)
+                const ascenderExtra = lineHasAscenders ? size * 0.12 : 0;
+                const descenderExtra = lineHasDescenders ? size * 0.08 : 0;
                 
                 // Calcular los bordes de la caja de línea
                 // Para líneas intermedias, usamos halfLineHeight para que no se solapen
                 let top = textCenterY - halfLineHeight;
                 let bottom = textCenterY + halfLineHeight;
                 
-                // Para los bordes externos, usamos padding EXACTAMENTE igual al horizontal
+                // Para los bordes externos, usamos padding ajustado por astas
                 if (isFirstLine) {
-                    top = textCenterY - visualHalfHeight - padding;
+                    // Si hay ascendentes, el texto se extiende más arriba
+                    top = textCenterY - baseHalfHeight - ascenderExtra - padding;
                 }
                 if (isLastLine) {
-                    bottom = textCenterY + visualHalfHeight + padding;
+                    // Si hay descendentes, el texto se extiende más abajo
+                    bottom = textCenterY + baseHalfHeight + descenderExtra + padding;
                 }
                 
                 return { width, shiftLeft, shiftRight, top, bottom };
