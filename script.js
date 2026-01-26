@@ -54,8 +54,7 @@ function initializeApp() {
         console.warn('Safe zone paid image not found');
     }
 
-    // Padding uniforme en TODOS los lados (como Instagram)
-    const padding = 14;
+    // borderRadius fijo para las esquinas
     const borderRadius = 10;
     
     // Variable para la imagen de fondo
@@ -115,7 +114,7 @@ function initializeApp() {
     // Función para obtener la fuente según el estilo
     function getFontFamily(style) {
         const fonts = {
-            classic: 'Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            classic: 'Aveny-T, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             modern: 'Aveny-T, sans-serif',
             neon: 'CosmopolitanScript, sans-serif',
             typewriter: '"Courier New", monospace',
@@ -178,6 +177,12 @@ function initializeApp() {
         // Leer el valor del slider correctamente
         const sliderValue = fontSize.value;
         const size = Math.max(parseInt(sliderValue, 10) || 33, 25);
+        
+        // PADDING PROPORCIONAL AL TAMAÑO DE FUENTE
+        // El padding escala con el tamaño de la fuente para mantener proporciones consistentes
+        // ~42% del tamaño de fuente da un padding visual equilibrado
+        const padding = Math.round(size * 0.42);
+        
         const isBold = bold.checked;
         const isItalic = italic.checked;
         const isTransparent = transparentBg.checked;
