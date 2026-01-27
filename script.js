@@ -35,6 +35,12 @@ function initializeApp() {
     const downloadBtn = document.getElementById('download-btn');
     const emojiBtn = document.getElementById('emoji-btn');
     const emojiPanel = document.getElementById('emoji-panel');
+    const presetSelect = document.getElementById('preset-select');
+    const savePresetBtn = document.getElementById('save-preset-btn');
+    
+    // Debug: verificar que los elementos de preset existan
+    if (!presetSelect) console.warn('preset-select element not found');
+    if (!savePresetBtn) console.warn('save-preset-btn element not found');
 
     // Verificar que todos los elementos esenciales existan
     if (!textInput || !svg || !textStyle || !customFontGroup || !customFontFile || !textColor || !bgColor || 
@@ -1009,6 +1015,149 @@ function initializeApp() {
                 renderText();
             });
         });
+    }
+
+    // Funcionalidad de Presets
+    function getPresets() {
+        const presetsJson = localStorage.getItem('textEditorPresets');
+        return presetsJson ? JSON.parse(presetsJson) : {};
+    }
+
+    function savePresets(presets) {
+        localStorage.setItem('textEditorPresets', JSON.stringify(presets));
+    }
+
+    function updatePresetSelect() {
+        if (!presetSelect) return;
+        const presets = getPresets();
+        presetSelect.innerHTML = '<option value="">-- Select a preset --</option>';
+        
+        Object.keys(presets).forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            presetSelect.appendChild(option);
+        });
+    }
+
+    function saveCurrentPreset() {
+        const presetName = prompt('Enter a name for this preset:');
+        if (!presetName || presetName.trim() === '') return;
+
+        const preset = {
+            text: textInput.value,
+            textStyle: textStyle.value,
+            textColor: textColor.value,
+            bgColor: bgColor.value,
+            bgOpacity: bgOpacity.value,
+            fontSize: fontSize.value,
+            lineHeight: lineHeight.value,
+            letterSpacing: letterSpacing.value,
+            borderRadius: borderRadiusSlider.value,
+            bold: bold.checked,
+            italic: italic.checked,
+            transparentBg: transparentBg.checked,
+            textAlign: textAlign.value,
+            safeZones: safeZonesSelect ? safeZonesSelect.value : 'none',
+            backgroundImageUrl: backgroundImageUrl
+        };
+
+        const presets = getPresets();
+        presets[presetName] = preset;
+        savePresets(presets);
+        updatePresetSelect();
+        alert(`Preset "${presetName}" saved successfully!`);
+    }
+
+    function loadPreset(presetName) {
+        const presets = getPresets();
+        const preset = presets[presetName];
+        if (!preset) return;
+
+        // Aplicar valores del preset
+        textInput.value = preset.text || '';
+        textStyle.value = preset.textStyle || 'classic';
+        textColor.value = preset.textColor || '#000000';
+        bgColor.value = preset.bgColor || '#ffffff';
+        bgOpacity.value = preset.bgOpacity || 100;
+        fontSize.value = preset.fontSize || 33;
+        lineHeight.value = preset.lineHeight || 120;
+        letterSpacing.value = preset.letterSpacing || 0;
+        borderRadiusSlider.value = preset.borderRadius || 10;
+        bold.checked = preset.bold || false;
+        italic.checked = preset.italic || false;
+        transparentBg.checked = preset.transparentBg || false;
+        textAlign.value = preset.textAlign || 'center';
+        
+        if (safeZonesSelect) {
+            safeZonesSelect.value = preset.safeZones || 'none';
+        }
+
+        // Actualizar valores mostrados
+        opacityValue.textContent = `${Math.round(bgOpacity.value)}%`;
+        fontSizeValue.textContent = `${fontSize.value}px`;
+        lineHeightValue.textContent = (lineHeight.value / 100).toFixed(1);
+        letterSpacingValue.textContent = `${letterSpacing.value}px`;
+        borderRadiusValue.textContent = `${borderRadiusSlider.value}px`;
+
+        // Manejar imagen de fondo si existe
+        if (preset.backgroundImageUrl && bgImagePreview) {
+            backgroundImageUrl = preset.backgroundImageUrl;
+            bgImagePreview.src = backgroundImageUrl;
+            bgImagePreview.style.display = 'block';
+            if (removeBgImage) removeBgImage.style.display = 'block';
+        } else {
+            backgroundImageUrl = null;
+            if (bgImagePreview) bgImagePreview.style.display = 'none';
+            if (removeBgImage) removeBgImage.style.display = 'none';
+        }
+
+        // Renderizar con los nuevos valores
+        renderText();
+    }
+
+    // Event listeners para presets
+    if (savePresetBtn) {
+        savePresetBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                saveCurrentPreset();
+            } catch (error) {
+                console.error('Error saving preset:', error);
+                alert('Error saving preset: ' + error.message);
+            }
+        });
+    } else {
+        console.warn('Save preset button not found');
+    }
+
+    if (presetSelect) {
+        presetSelect.addEventListener('change', function() {
+            if (this.value) {
+                try {
+                    loadPreset(this.value);
+                    // Resetear el selector después de cargar
+                    setTimeout(() => {
+                        this.value = '';
+                    }, 100);
+                } catch (error) {
+                    console.error('Error loading preset:', error);
+                    alert('Error loading preset: ' + error.message);
+                }
+            }
+        });
+    } else {
+        console.warn('Preset select not found');
+    }
+
+    // Inicializar lista de presets
+    if (presetSelect) {
+        try {
+            updatePresetSelect();
+        } catch (error) {
+            console.error('Error updating preset select:', error);
+        }
     }
 
     // Inicializar valores mostrados
