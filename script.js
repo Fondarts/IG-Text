@@ -542,8 +542,15 @@ function initializeApp() {
                         // midY is the transition point between lines
                         const midY = (curr.bottom + next.top) / 2;
                         
-                        if (Math.abs(diff) < 0.5) {
+                        // Aumentar el umbral para considerar líneas como "iguales" cuando tienen anchos similares
+                        // Usar un umbral proporcional al radio de las esquinas para evitar transiciones mal dibujadas
+                        const threshold = Math.max(r * 1.5, 3);
+                        
+                        if (Math.abs(diff) < threshold) {
                             // Same right edge - continue straight down
+                            // Usar el promedio de los dos bordes para suavizar la transición
+                            const avgRight = (curr.shiftRight + next.shiftRight) / 2;
+                            pathSegments.push(`L ${avgRight},${midY}`);
                         } else if (diff > 0) {
                             // Next line is WIDER on right - convex corner (outward)
                             pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
@@ -578,8 +585,15 @@ function initializeApp() {
                         // midY is the transition point between lines
                         const midY = (prev.bottom + curr.top) / 2;
                         
-                        if (Math.abs(diff) < 0.5) {
+                        // Aumentar el umbral para considerar líneas como "iguales" cuando tienen anchos similares
+                        // Usar un umbral proporcional al radio de las esquinas para evitar transiciones mal dibujadas
+                        const threshold = Math.max(r * 1.5, 3);
+                        
+                        if (Math.abs(diff) < threshold) {
                             // Same left edge - continue straight up
+                            // Usar el promedio de los dos bordes para suavizar la transición
+                            const avgLeft = (curr.shiftLeft + prev.shiftLeft) / 2;
+                            pathSegments.push(`L ${avgLeft},${midY}`);
                         } else if (diff > 0) {
                             // Previous line is NARROWER on left - concave corner (inward)
                             pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
