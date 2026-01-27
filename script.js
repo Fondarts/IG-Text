@@ -27,6 +27,8 @@ function initializeApp() {
     const lineHeightValue = document.getElementById('line-height-value');
     const letterSpacing = document.getElementById('letter-spacing');
     const letterSpacingValue = document.getElementById('letter-spacing-value');
+    const borderRadiusSlider = document.getElementById('border-radius');
+    const borderRadiusValue = document.getElementById('border-radius-value');
     const bgImageFile = document.getElementById('bg-image-file');
     const removeBgImage = document.getElementById('remove-bg-image');
     const bgImagePreview = document.getElementById('bg-image-preview');
@@ -38,7 +40,8 @@ function initializeApp() {
     if (!textInput || !svg || !textStyle || !customFontGroup || !customFontFile || !textColor || !bgColor || 
         !bgOpacity || !opacityValue || !fontSize || !fontSizeValue || 
         !bold || !italic || !transparentBg || !textAlign || !downloadBtn ||
-        !lineHeight || !lineHeightValue || !letterSpacing || !letterSpacingValue) {
+        !lineHeight || !lineHeightValue || !letterSpacing || !letterSpacingValue ||
+        !borderRadiusSlider || !borderRadiusValue) {
         console.error('Error: Not all essential DOM elements were found');
         return;
     }
@@ -54,8 +57,10 @@ function initializeApp() {
         console.warn('Safe zone paid image not found');
     }
 
-    // borderRadius fijo para las esquinas
-    const borderRadius = 10;
+    // Función para obtener el borderRadius desde el slider
+    function getBorderRadius() {
+        return parseInt(borderRadiusSlider.value) || 10;
+    }
     
     // Variable para la imagen de fondo
     let backgroundImageUrl = null;
@@ -176,7 +181,7 @@ function initializeApp() {
         const opacity = bgOpacity.value / 100;
         // Leer el valor del slider correctamente
         const sliderValue = fontSize.value;
-        const size = Math.max(parseInt(sliderValue, 10) || 33, 25);
+        const size = Math.max(parseInt(sliderValue, 10) || 33, 15);
         
         // PADDING PROPORCIONAL AL TAMAÑO DE FUENTE
         // El padding escala con el tamaño de la fuente para mantener proporciones consistentes
@@ -394,7 +399,7 @@ function initializeApp() {
         // Source: https://stackoverflow.com/a/49288455 (luca992)
         if (!isTransparent) {
             const bgRgba = hexToRgba(backgroundColor, opacity);
-            const r = borderRadius;
+            const r = getBorderRadius();
             
             // Pre-calculate all line dimensions first
             // NOTA: lineMetric.y es el centro de cada línea de texto
@@ -776,6 +781,10 @@ function initializeApp() {
     textAlign.addEventListener('change', renderText);
     lineHeight.addEventListener('input', renderText);
     letterSpacing.addEventListener('input', renderText);
+    borderRadiusSlider.addEventListener('input', function() {
+        borderRadiusValue.textContent = borderRadiusSlider.value + 'px';
+        renderText();
+    });
     
     // Event listeners para imagen de fondo
     if (bgImageFile && removeBgImage && bgImagePreview) {
@@ -1000,6 +1009,9 @@ function initializeApp() {
         });
     }
 
+    // Inicializar valores mostrados
+    borderRadiusValue.textContent = borderRadiusSlider.value + 'px';
+    
     // Inicializar
     renderText();
 
