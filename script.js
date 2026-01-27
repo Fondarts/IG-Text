@@ -37,10 +37,6 @@ function initializeApp() {
     const emojiPanel = document.getElementById('emoji-panel');
     const presetSelect = document.getElementById('preset-select');
     const savePresetBtn = document.getElementById('save-preset-btn');
-    
-    // Debug: verificar que los elementos de preset existan
-    if (!presetSelect) console.warn('preset-select element not found');
-    if (!savePresetBtn) console.warn('save-preset-btn element not found');
 
     // Verificar que todos los elementos esenciales existan
     if (!textInput || !svg || !textStyle || !customFontGroup || !customFontFile || !textColor || !bgColor || 
@@ -542,15 +538,8 @@ function initializeApp() {
                         // midY is the transition point between lines
                         const midY = (curr.bottom + next.top) / 2;
                         
-                        // Aumentar el umbral para considerar líneas como "iguales" cuando tienen anchos similares
-                        // Usar un umbral proporcional al radio de las esquinas para evitar transiciones mal dibujadas
-                        const threshold = Math.max(r * 1.5, 3);
-                        
-                        if (Math.abs(diff) < threshold) {
+                        if (Math.abs(diff) < 0.5) {
                             // Same right edge - continue straight down
-                            // Usar el promedio de los dos bordes para suavizar la transición
-                            const avgRight = (curr.shiftRight + next.shiftRight) / 2;
-                            pathSegments.push(`L ${avgRight},${midY}`);
                         } else if (diff > 0) {
                             // Next line is WIDER on right - convex corner (outward)
                             pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
@@ -585,15 +574,8 @@ function initializeApp() {
                         // midY is the transition point between lines
                         const midY = (prev.bottom + curr.top) / 2;
                         
-                        // Aumentar el umbral para considerar líneas como "iguales" cuando tienen anchos similares
-                        // Usar un umbral proporcional al radio de las esquinas para evitar transiciones mal dibujadas
-                        const threshold = Math.max(r * 1.5, 3);
-                        
-                        if (Math.abs(diff) < threshold) {
+                        if (Math.abs(diff) < 0.5) {
                             // Same left edge - continue straight up
-                            // Usar el promedio de los dos bordes para suavizar la transición
-                            const avgLeft = (curr.shiftLeft + prev.shiftLeft) / 2;
-                            pathSegments.push(`L ${avgLeft},${midY}`);
                         } else if (diff > 0) {
                             // Previous line is NARROWER on left - concave corner (inward)
                             pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
@@ -689,7 +671,7 @@ function initializeApp() {
                     // Ajustar posición vertical de emojis para alinearlos mejor con el texto
                     // El desplazamiento es proporcional al tamaño de fuente para mantener consistencia
                     if (part.isEmoji) {
-                        const dyValue = -(size * 0.05); // Aproximadamente 5% del tamaño de fuente hacia arriba
+                        const dyValue = size * 0.02; // Aproximadamente 2% del tamaño de fuente hacia abajo para centrar
                         tspan.setAttribute('dy', dyValue.toString());
                     }
                     tspan.textContent = part.text;
@@ -1005,11 +987,63 @@ function initializeApp() {
 
     // Funcionalidad del selector de emojis
     if (emojiBtn && emojiPanel && textInput) {
+        // Funciones para manejar emojis recientes
+        function getRecentEmojis() {
+            const recentJson = localStorage.getItem('recentEmojis');
+            return recentJson ? JSON.parse(recentJson) : [];
+        }
+
+        function saveRecentEmoji(emoji) {
+            let recent = getRecentEmojis();
+            // Remover el emoji si ya existe
+            recent = recent.filter(e => e !== emoji);
+            // Agregar al principio
+            recent.unshift(emoji);
+            // Mantener solo los últimos 12
+            recent = recent.slice(0, 12);
+            localStorage.setItem('recentEmojis', JSON.stringify(recent));
+        }
+
+        function renderRecentEmojis() {
+            const recentEmojisGrid = document.getElementById('recent-emojis-grid');
+            const recentEmojisSection = document.getElementById('recent-emojis-section');
+            if (!recentEmojisGrid || !recentEmojisSection) return;
+
+            const recent = getRecentEmojis();
+            
+            if (recent.length === 0) {
+                recentEmojisSection.style.display = 'none';
+                return;
+            }
+
+            recentEmojisSection.style.display = 'block';
+            recentEmojisGrid.innerHTML = '';
+
+            recent.forEach(emoji => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'emoji-item';
+                button.textContent = emoji;
+                button.addEventListener('click', function() {
+                    const emojiText = this.textContent;
+                    textInput.value += emojiText;
+                    textInput.dispatchEvent(new Event('input'));
+                    renderText();
+                    saveRecentEmoji(emojiText);
+                    renderRecentEmojis();
+                });
+                recentEmojisGrid.appendChild(button);
+            });
+        }
+
         // Toggle del panel de emojis
         emojiBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             const isVisible = emojiPanel.style.display === 'block';
             emojiPanel.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                renderRecentEmojis();
+            }
         });
 
         // Cerrar el panel al hacer clic fuera
@@ -1027,8 +1061,13 @@ function initializeApp() {
                 textInput.value += emoji;
                 textInput.dispatchEvent(new Event('input'));
                 renderText();
+                saveRecentEmoji(emoji);
+                renderRecentEmojis();
             });
         });
+
+        // Inicializar emojis recientes al cargar
+        renderRecentEmojis();
     }
 
     // Funcionalidad de Presets
@@ -1142,8 +1181,6 @@ function initializeApp() {
                 alert('Error saving preset: ' + error.message);
             }
         });
-    } else {
-        console.warn('Save preset button not found');
     }
 
     if (presetSelect) {
@@ -1161,10 +1198,11 @@ function initializeApp() {
                 }
             }
         });
-    } else {
-        console.warn('Preset select not found');
     }
 
+    // Inicializar valores mostrados
+    borderRadiusValue.textContent = borderRadiusSlider.value + 'px';
+    
     // Inicializar lista de presets
     if (presetSelect) {
         try {
@@ -1173,9 +1211,6 @@ function initializeApp() {
             console.error('Error updating preset select:', error);
         }
     }
-
-    // Inicializar valores mostrados
-    borderRadiusValue.textContent = borderRadiusSlider.value + 'px';
     
     // Inicializar
     renderText();

@@ -25,6 +25,11 @@ Second line ✌️</textarea>
                 <div class="emoji-selector">
                     <button type="button" id="emoji-btn" class="emoji-btn">😀 Emojis</button>
                     <div id="emoji-panel" class="emoji-panel" style="display: none;">
+                        <div class="emoji-section" id="recent-emojis-section" style="display: none;">
+                            <div class="emoji-section-title">Recently Used</div>
+                            <div class="emoji-grid" id="recent-emojis-grid">
+                            </div>
+                        </div>
                         <div class="emoji-section">
                             <div class="emoji-section-title">Faces & People</div>
                             <div class="emoji-grid">
@@ -745,7 +750,6 @@ Second line ✌️</textarea>
                             <button type="button" class="emoji-item">🗻</button>
                             <button type="button" class="emoji-item">🏕️</button>
                             <button type="button" class="emoji-item">⛺</button>
-                            <button type="button" class="emoji-item">🥾</button>
                             <button type="button" class="emoji-item">🏠</button>
                             <button type="button" class="emoji-item">🏡</button>
                             <button type="button" class="emoji-item">🏘️</button>
@@ -1165,7 +1169,7 @@ Second line ✌️</textarea>
                 <div class="control-group-inline">
                     <div class="control-group">
                         <label for="border-radius">Corner radius:</label>
-                        <input type="range" id="border-radius" min="0" max="50" value="10">
+                        <input type="range" id="border-radius" min="1" max="25" value="10">
                         <span id="border-radius-value">10px</span>
                     </div>
                 </div>
