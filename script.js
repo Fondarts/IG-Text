@@ -666,9 +666,11 @@ function initializeApp() {
                 parts.forEach((part, index) => {
                     const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
                     tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-                    // Bajar emojis 2 píxeles
+                    // Ajustar posición vertical de emojis para alinearlos mejor con el texto
+                    // El desplazamiento es proporcional al tamaño de fuente para mantener consistencia
                     if (part.isEmoji) {
-                        tspan.setAttribute('dy', '2');
+                        const dyValue = -(size * 0.05); // Aproximadamente 5% del tamaño de fuente hacia arriba
+                        tspan.setAttribute('dy', dyValue.toString());
                     }
                     tspan.textContent = part.text;
                     textElement.appendChild(tspan);
