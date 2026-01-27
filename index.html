@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instagram Stories Text Generator</title>
+    <title>Instagram text editor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 <body>
     <div class="container">
         <div class="editor-panel">
-            <h1>Instagram Stories Text Editor <span style="font-size: 0.6em; color: #667eea; font-weight: normal;">V25</span></h1>
+            <h1>Instagram text editor</h1>
             
             <div class="input-section">
                 <label for="text-input">Write your text:</label>
@@ -615,16 +615,27 @@ Second line ✌️</textarea>
             </div>
 
             <div class="controls">
-                <div class="control-group">
-                    <label for="text-style">Text style:</label>
-                    <select id="text-style">
-                        <option value="classic">Classic</option>
-                        <option value="modern">Modern</option>
-                        <option value="neon">Neon</option>
-                        <option value="typewriter">Typewriter</option>
-                        <option value="strong">Strong</option>
-                        <option value="custom">Custom Font</option>
-                    </select>
+                <div class="control-group-inline">
+                    <div class="control-group">
+                        <label for="text-style">Text style:</label>
+                        <select id="text-style">
+                            <option value="classic">Classic</option>
+                            <option value="modern">Modern</option>
+                            <option value="neon">Neon</option>
+                            <option value="typewriter">Typewriter</option>
+                            <option value="strong">Strong</option>
+                            <option value="custom">Custom Font</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="text-align">Text alignment:</label>
+                        <select id="text-align">
+                            <option value="left">Left</option>
+                            <option value="center" selected>Center</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="control-group" id="custom-font-group" style="display: none;">
@@ -685,36 +696,29 @@ Second line ✌️</textarea>
                             <input type="checkbox" id="italic"> Italic
                         </label>
                     </div>
+
+                    <div class="control-group">
+                        <label>
+                            <input type="checkbox" id="transparent-bg"> Transparent background
+                        </label>
+                    </div>
                 </div>
 
-                <div class="control-group">
-                    <label>
-                        <input type="checkbox" id="transparent-bg"> Transparent background
-                    </label>
-                </div>
+                <div class="control-group-inline">
+                    <div class="control-group">
+                        <label for="safe-zones-select">Safe zones:</label>
+                        <select id="safe-zones-select">
+                            <option value="none">None</option>
+                            <option value="organic">Organic</option>
+                            <option value="paid">Paid</option>
+                        </select>
+                    </div>
 
-                <div class="control-group">
-                    <label for="safe-zones-select">Safe zones:</label>
-                    <select id="safe-zones-select">
-                        <option value="none">None</option>
-                        <option value="organic">Organic</option>
-                        <option value="paid">Paid</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label for="text-align">Text alignment:</label>
-                    <select id="text-align">
-                        <option value="left">Left</option>
-                        <option value="center" selected>Center</option>
-                        <option value="right">Right</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label for="bg-image-file">Background image (optional):</label>
-                    <input type="file" id="bg-image-file" accept="image/*">
-                    <button type="button" id="remove-bg-image" class="remove-bg-btn" style="display: none;">Remove background</button>
+                    <div class="control-group">
+                        <label for="bg-image-file">Background image (optional):</label>
+                        <input type="file" id="bg-image-file" accept="image/*">
+                        <button type="button" id="remove-bg-image" class="remove-bg-btn" style="display: none;">Remove background</button>
+                    </div>
                 </div>
 
                 <div class="control-group">
@@ -735,6 +739,10 @@ Second line ✌️</textarea>
                 </div>
             </div>
     </div>
+
+    <footer style="text-align: center; padding: 20px; color: white; font-size: 14px;">
+        By <a href="https://bardosoft.vercel.app/index.html" target="_blank" style="color: white; text-decoration: underline;">Bardosoft</a>
+    </footer>
 
     <script src="script.js"></script>
 </body>
