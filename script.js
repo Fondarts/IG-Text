@@ -29,6 +29,8 @@ function initializeApp() {
     const letterSpacingValue = document.getElementById('letter-spacing-value');
     const borderRadiusSlider = document.getElementById('border-radius');
     const borderRadiusValue = document.getElementById('border-radius-value');
+    const textVerticalPosition = document.getElementById('text-vertical-position');
+    const textVerticalPositionValue = document.getElementById('text-vertical-position-value');
     const bgImageFile = document.getElementById('bg-image-file');
     const removeBgImage = document.getElementById('remove-bg-image');
     const bgImagePreview = document.getElementById('bg-image-preview');
@@ -58,6 +60,11 @@ function initializeApp() {
     if (!safeZonePaid) {
         console.warn('Safe zone paid image not found');
     }
+    
+    // Verificar elementos opcionales (text vertical position)
+    if (!textVerticalPosition || !textVerticalPositionValue) {
+        console.warn('Text vertical position controls not found');
+    }
 
     // Función para obtener el borderRadius desde el slider
     function getBorderRadius() {
@@ -69,6 +76,21 @@ function initializeApp() {
 
     // Variable para almacenar el nombre de la fuente personalizada
     let customFontName = null;
+    // URL del blob de la fuente personalizada (para la página)
+    let customFontBlobUrl = null;
+    // Base64 de la fuente personalizada (para incluirla en el export PNG como data URI)
+    let customFontBase64 = null;
+    let customFontFormat = 'truetype';
+
+    // Convertir ArrayBuffer a base64 para embeber fuentes en el SVG exportado
+    function arrayBufferToBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
 
     // Función para cargar una fuente personalizada
     function loadCustomFont(file) {
@@ -86,17 +108,21 @@ function initializeApp() {
                 else if (file.name.endsWith('.woff')) format = 'woff';
                 else if (file.name.endsWith('.woff2')) format = 'woff2';
                 
-                // Crear URL del blob
+                customFontBase64 = arrayBufferToBase64(fontData);
+                customFontFormat = format;
+                
+                // Crear URL del blob para la página
                 const blob = new Blob([fontData], { type: `font/${format}` });
                 const url = URL.createObjectURL(blob);
                 
-                // Eliminar fuente anterior si existe
-                const existingStyle = document.getElementById('custom-font-style');
-                if (existingStyle) {
-                    existingStyle.remove();
+                if (customFontBlobUrl) {
+                    URL.revokeObjectURL(customFontBlobUrl);
                 }
+                customFontBlobUrl = url;
                 
-                // Crear nuevo estilo para la fuente
+                const existingStyle = document.getElementById('custom-font-style');
+                if (existingStyle) existingStyle.remove();
+                
                 const style = document.createElement('style');
                 style.id = 'custom-font-style';
                 style.textContent = `
@@ -196,6 +222,7 @@ function initializeApp() {
         const alignment = textAlign.value;
         const lineHeightMultiplier = lineHeight.value / 100; // Convert 80-200 to 0.8-2.0
         const letterSpacingPx = parseInt(letterSpacing.value, 10) || 0;
+        const textVerticalOffset = (textVerticalPosition ? parseInt(textVerticalPosition.value, 10) : 0) || 0; // Offset vertical solo para el texto
 
         // Limpiar SVG
         svg.innerHTML = '';
@@ -484,27 +511,61 @@ function initializeApp() {
                 return { width, shiftLeft, shiftRight, top, bottom };
             });
             
-            // Apply "same width" rule: if difference is less than threshold, use previous line's width
+            // Apply "same width" rule: unificar líneas con anchos similares en un solo bloque
             const sameWidthThreshold = r * 3;
+            
+            // Encontrar grupos de líneas con anchos similares
+            const groups = [];
+            let currentGroup = [0];
+            
             for (let i = 1; i < lineRects.length; i++) {
                 const curr = lineRects[i];
                 const prev = lineRects[i - 1];
                 const widthDiff = Math.abs(curr.width - prev.width);
                 
-                if (widthDiff < sameWidthThreshold && widthDiff > 0 && curr.width < prev.width) {
-                    const newWidth = prev.width;
-                    if (alignment === 'right') {
-                        curr.shiftLeft = curr.shiftRight - newWidth;
-                    } else if (alignment === 'left') {
-                        curr.shiftRight = curr.shiftLeft + newWidth;
-                    } else {
-                        const center = (curr.shiftLeft + curr.shiftRight) / 2;
-                        curr.shiftLeft = center - newWidth / 2;
-                        curr.shiftRight = center + newWidth / 2;
+                if (widthDiff < sameWidthThreshold) {
+                    // Agregar a el grupo actual
+                    currentGroup.push(i);
+                } else {
+                    // Cerrar grupo actual y empezar uno nuevo
+                    if (currentGroup.length > 0) {
+                        groups.push(currentGroup);
                     }
-                    curr.width = newWidth;
+                    currentGroup = [i];
                 }
             }
+            // Agregar el último grupo
+            if (currentGroup.length > 0) {
+                groups.push(currentGroup);
+            }
+            
+            // Para cada grupo, unificar todas las líneas al ancho máximo del grupo
+            groups.forEach(group => {
+                if (group.length > 1) {
+                    // Encontrar el ancho máximo en el grupo
+                    let maxWidth = 0;
+                    group.forEach(idx => {
+                        maxWidth = Math.max(maxWidth, lineRects[idx].width);
+                    });
+                    
+                    // Aplicar el ancho máximo a todas las líneas del grupo
+                    group.forEach(idx => {
+                        const rect = lineRects[idx];
+                        if (rect.width !== maxWidth) {
+                            const center = (rect.shiftLeft + rect.shiftRight) / 2;
+                            if (alignment === 'right') {
+                                rect.shiftLeft = rect.shiftRight - maxWidth;
+                            } else if (alignment === 'left') {
+                                rect.shiftRight = rect.shiftLeft + maxWidth;
+                            } else {
+                                rect.shiftLeft = center - maxWidth / 2;
+                                rect.shiftRight = center + maxWidth / 2;
+                            }
+                            rect.width = maxWidth;
+                        }
+                    });
+                }
+            });
             
             // Draw background as a single continuous path with curves at corners
             if (lineRects.length === 1) {
@@ -540,17 +601,26 @@ function initializeApp() {
                         
                         if (Math.abs(diff) < 0.5) {
                             // Same right edge - continue straight down
+                            pathSegments.push(`L ${curr.shiftRight},${midY}`);
                         } else if (diff > 0) {
-                            // Next line is WIDER on right - convex corner (outward)
+                            // Next line is WIDER on right - usar arcos con esquinas redondeadas
+                            // Bajar verticalmente hasta antes de la curva superior
                             pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
+                            // Curva hacia afuera (esquina redondeada superior)
                             pathSegments.push(`A ${r},${r} 0 0 0 ${curr.shiftRight + r},${midY}`);
+                            // Línea horizontal completamente recta (asegurar que sea horizontal)
                             pathSegments.push(`L ${next.shiftRight - r},${midY}`);
+                            // Curva hacia adentro (esquina redondeada inferior)
                             pathSegments.push(`A ${r},${r} 0 0 1 ${next.shiftRight},${midY + r}`);
                         } else {
-                            // Next line is NARROWER on right - concave corner (inward)
+                            // Next line is NARROWER on right - usar arcos con esquinas redondeadas
+                            // Bajar verticalmente hasta antes de la curva superior
                             pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
+                            // Curva hacia adentro (esquina redondeada superior)
                             pathSegments.push(`A ${r},${r} 0 0 1 ${curr.shiftRight - r},${midY}`);
+                            // Línea horizontal completamente recta (asegurar que sea horizontal)
                             pathSegments.push(`L ${next.shiftRight + r},${midY}`);
+                            // Curva hacia afuera (esquina redondeada inferior)
                             pathSegments.push(`A ${r},${r} 0 0 0 ${next.shiftRight},${midY + r}`);
                         }
                     }
@@ -576,17 +646,26 @@ function initializeApp() {
                         
                         if (Math.abs(diff) < 0.5) {
                             // Same left edge - continue straight up
+                            pathSegments.push(`L ${curr.shiftLeft},${midY}`);
                         } else if (diff > 0) {
-                            // Previous line is NARROWER on left - concave corner (inward)
+                            // Previous line is NARROWER on left - usar arcos con esquinas redondeadas
+                            // Subir verticalmente hasta antes de la curva inferior
                             pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
+                            // Curva hacia adentro (esquina redondeada inferior)
                             pathSegments.push(`A ${r},${r} 0 0 1 ${curr.shiftLeft + r},${midY}`);
+                            // Línea horizontal completamente recta (asegurar que sea horizontal)
                             pathSegments.push(`L ${prev.shiftLeft - r},${midY}`);
+                            // Curva hacia afuera (esquina redondeada superior)
                             pathSegments.push(`A ${r},${r} 0 0 0 ${prev.shiftLeft},${midY - r}`);
                         } else {
-                            // Previous line is WIDER on left - convex corner (outward)
+                            // Previous line is WIDER on left - usar arcos con esquinas redondeadas
+                            // Subir verticalmente hasta antes de la curva inferior
                             pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
+                            // Curva hacia afuera (esquina redondeada inferior)
                             pathSegments.push(`A ${r},${r} 0 0 0 ${curr.shiftLeft - r},${midY}`);
+                            // Línea horizontal completamente recta (asegurar que sea horizontal)
                             pathSegments.push(`L ${prev.shiftLeft + r},${midY}`);
+                            // Curva hacia adentro (esquina redondeada superior)
                             pathSegments.push(`A ${r},${r} 0 0 1 ${prev.shiftLeft},${midY - r}`);
                         }
                     }
@@ -611,7 +690,8 @@ function initializeApp() {
             
             // Usar 'central' para el baseline vertical - centra el texto matemáticamente
             // Sumamos padding a la posición Y porque lineMetric.y no incluye el offset del padding
-            textElement.setAttribute('y', lineMetric.y + padding);
+            // Aplicamos el offset vertical solo al texto (no al fondo)
+            textElement.setAttribute('y', lineMetric.y + padding + textVerticalOffset);
             textElement.setAttribute('dominant-baseline', 'central');
             
             // Establecer text-anchor según la alineación
@@ -690,6 +770,9 @@ function initializeApp() {
         opacityValue.textContent = `${Math.round(opacity * 100)}%`;
         lineHeightValue.textContent = lineHeightMultiplier.toFixed(1);
         letterSpacingValue.textContent = `${letterSpacingPx}px`;
+        if (textVerticalPositionValue) {
+            textVerticalPositionValue.textContent = `${textVerticalOffset > 0 ? '+' : ''}${textVerticalOffset}px`;
+        }
 
         // Mostrar/ocultar safe zones overlay
         updateSafeZones();
@@ -790,6 +873,14 @@ function initializeApp() {
         renderText();
     });
     
+    if (textVerticalPosition && textVerticalPositionValue) {
+        textVerticalPosition.addEventListener('input', function() {
+            const offset = parseInt(textVerticalPosition.value, 10) || 0;
+            textVerticalPositionValue.textContent = `${offset > 0 ? '+' : ''}${offset}px`;
+            renderText();
+        });
+    }
+    
     // Event listeners para imagen de fondo
     if (bgImageFile && removeBgImage && bgImagePreview) {
         bgImageFile.addEventListener('change', function(e) {
@@ -815,18 +906,16 @@ function initializeApp() {
         });
     }
 
-    // Función para descargar el SVG como PNG
-    function downloadAsPNG() {
+    // Función para descargar el SVG como PNG (con fuentes embebidas en base64 para que el export use la misma fuente)
+    async function downloadAsPNG() {
         console.log('downloadAsPNG llamado');
         
-        // Verificar que el SVG tenga contenido
         if (!svg || svg.children.length === 0) {
             alert('No text to download. Please write something first.');
             return;
         }
         
         try {
-            // Obtener el viewBox original
             const viewBox = svg.getAttribute('viewBox');
             if (!viewBox) {
                 alert('Error: The SVG does not have a viewBox defined.');
@@ -837,14 +926,24 @@ function initializeApp() {
             const vbWidth = parseFloat(viewBoxValues[2]);
             const vbHeight = parseFloat(viewBoxValues[3]);
             
-            // Obtener el bounding box del path (fondo) para saber qué área recortar
             let pathBBox = null;
             const paths = svg.querySelectorAll('path');
-            if (paths.length > 0) {
+            const textElements = svg.querySelectorAll('text');
+            
+            if (paths.length > 0 || textElements.length > 0) {
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 paths.forEach(path => {
                     try {
                         const bbox = path.getBBox();
+                        minX = Math.min(minX, bbox.x);
+                        minY = Math.min(minY, bbox.y);
+                        maxX = Math.max(maxX, bbox.x + bbox.width);
+                        maxY = Math.max(maxY, bbox.y + bbox.height);
+                    } catch (e) {}
+                });
+                textElements.forEach(text => {
+                    try {
+                        const bbox = text.getBBox();
                         minX = Math.min(minX, bbox.x);
                         minY = Math.min(minY, bbox.y);
                         maxX = Math.max(maxX, bbox.x + bbox.width);
@@ -856,7 +955,6 @@ function initializeApp() {
                 }
             }
             
-            // Clonar el SVG sin modificar el viewBox original
             const svgElement = svg.cloneNode(true);
             svgElement.setAttribute('width', vbWidth);
             svgElement.setAttribute('height', vbHeight);
@@ -864,16 +962,50 @@ function initializeApp() {
             svgElement.style.transform = '';
             svgElement.style.visibility = 'visible';
             
-            // Ajustar posición Y del texto para compensar diferencia de renderizado en canvas
-            // MANTENEMOS dominant-baseline, solo ajustamos Y hacia arriba
-            const textElements = svgElement.querySelectorAll('text');
-            textElements.forEach(textEl => {
+            // Embeber fuentes como data URI (base64) para que el PNG exportado use la misma fuente
+            const baseUrl = window.location.href.replace(/[^/]*$/, '');
+            const fontStyles = [];
+            
+            const mimeMap = { truetype: 'font/ttf', opentype: 'font/otf', woff: 'font/woff', woff2: 'font/woff2' };
+            const formatMap = { truetype: 'truetype', opentype: 'opentype', woff: 'woff', woff2: 'woff2' };
+            
+            try {
+                const [aveny, cosmo, proxima] = await Promise.all([
+                    fetch(baseUrl + 'Fonts/Aveny-T.ttf').then(r => r.arrayBuffer()),
+                    fetch(baseUrl + 'Fonts/CosmopolitanScriptRegular.otf').then(r => r.arrayBuffer()),
+                    fetch(baseUrl + 'Fonts/Proxima-Nova-Semibold.ttf').then(r => r.arrayBuffer())
+                ]);
+                fontStyles.push(`@font-face{font-family:'Aveny-T';src:url(data:${mimeMap.truetype};base64,${arrayBufferToBase64(aveny)}) format('${formatMap.truetype}');font-weight:normal;font-style:normal;}`);
+                fontStyles.push(`@font-face{font-family:'CosmopolitanScript';src:url(data:${mimeMap.opentype};base64,${arrayBufferToBase64(cosmo)}) format('${formatMap.opentype}');font-weight:normal;font-style:normal;}`);
+                fontStyles.push(`@font-face{font-family:'Proxima-Nova-Semibold';src:url(data:${mimeMap.truetype};base64,${arrayBufferToBase64(proxima)}) format('${formatMap.truetype}');font-weight:600;font-style:normal;}`);
+            } catch (e) {
+                console.warn('No se pudieron cargar fuentes locales para export, usando URLs:', e);
+                fontStyles.push(`@font-face{font-family:'Aveny-T';src:url('${baseUrl}Fonts/Aveny-T.ttf') format('truetype');font-weight:normal;font-style:normal;}`);
+                fontStyles.push(`@font-face{font-family:'CosmopolitanScript';src:url('${baseUrl}Fonts/CosmopolitanScriptRegular.otf') format('opentype');font-weight:normal;font-style:normal;}`);
+                fontStyles.push(`@font-face{font-family:'Proxima-Nova-Semibold';src:url('${baseUrl}Fonts/Proxima-Nova-Semibold.ttf') format('truetype');font-weight:600;font-style:normal;}`);
+            }
+            
+            if (customFontBase64 && customFontName) {
+                const mime = mimeMap[customFontFormat] || 'font/ttf';
+                const format = formatMap[customFontFormat] || 'truetype';
+                fontStyles.push(`@font-face{font-family:'${customFontName}';src:url(data:${mime};base64,${customFontBase64}) format('${format}');font-weight:normal;font-style:normal;}`);
+            }
+            
+            fontStyles.push('@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&display=swap");');
+            
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+            styleEl.setAttribute('type', 'text/css');
+            styleEl.textContent = fontStyles.join(' ');
+            defs.appendChild(styleEl);
+            svgElement.insertBefore(defs, svgElement.firstChild);
+            
+            const clonedTextElements = svgElement.querySelectorAll('text');
+            clonedTextElements.forEach(textEl => {
                 const currentY = parseFloat(textEl.getAttribute('y')) || 0;
                 const style = textEl.getAttribute('style') || '';
                 const fontSizeMatch = style.match(/font-size:\s*(\d+)px/);
                 const fontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 33;
-                
-                // Pequeño ajuste hacia arriba (valor positivo resta de Y)
                 const adjustment = fontSize * 0.08;
                 textEl.setAttribute('y', currentY - adjustment);
             });
@@ -1107,6 +1239,7 @@ function initializeApp() {
             lineHeight: lineHeight.value,
             letterSpacing: letterSpacing.value,
             borderRadius: borderRadiusSlider.value,
+            textVerticalPosition: textVerticalPosition.value,
             bold: bold.checked,
             italic: italic.checked,
             transparentBg: transparentBg.checked,
@@ -1137,6 +1270,9 @@ function initializeApp() {
         lineHeight.value = preset.lineHeight || 120;
         letterSpacing.value = preset.letterSpacing || 0;
         borderRadiusSlider.value = preset.borderRadius || 10;
+        if (textVerticalPosition) {
+            textVerticalPosition.value = preset.textVerticalPosition || 0;
+        }
         bold.checked = preset.bold || false;
         italic.checked = preset.italic || false;
         transparentBg.checked = preset.transparentBg || false;
@@ -1152,6 +1288,10 @@ function initializeApp() {
         lineHeightValue.textContent = (lineHeight.value / 100).toFixed(1);
         letterSpacingValue.textContent = `${letterSpacing.value}px`;
         borderRadiusValue.textContent = `${borderRadiusSlider.value}px`;
+        if (textVerticalPosition && textVerticalPositionValue) {
+            const verticalOffset = parseInt(textVerticalPosition.value, 10) || 0;
+            textVerticalPositionValue.textContent = `${verticalOffset > 0 ? '+' : ''}${verticalOffset}px`;
+        }
 
         // Manejar imagen de fondo si existe
         if (preset.backgroundImageUrl && bgImagePreview) {
@@ -1202,6 +1342,9 @@ function initializeApp() {
 
     // Inicializar valores mostrados
     borderRadiusValue.textContent = borderRadiusSlider.value + 'px';
+    if (textVerticalPositionValue) {
+        textVerticalPositionValue.textContent = '0px';
+    }
     
     // Inicializar lista de presets
     if (presetSelect) {
