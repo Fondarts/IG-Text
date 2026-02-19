@@ -25,9 +25,19 @@
     font-style: normal;
 }
 
+/* ── Paleta Honda AI Studio ───────────────────────────────────────────────
+   Fondo página  : #0d1520
+   Panel/card    : #162030
+   Input/select  : #1e2b3a
+   Texto primario: #ffffff
+   Texto labels  : #8b9db8
+   Acento Honda  : #e53935
+   Bordes        : #2a3545
+──────────────────────────────────────────────────────────────────────── */
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: #000000;
+    background: #0d1520;
     min-height: 100vh;
     padding: 20px;
 }
@@ -42,14 +52,15 @@ body {
 }
 
 .editor-panel {
-    background: white;
+    background: #162030;
     border-radius: 20px;
     padding: 25px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    border: 1px solid #2a3545;
 }
 
 .editor-panel h1 {
-    color: #333;
+    color: #ffffff;
     margin-bottom: 20px;
     font-size: 28px;
     font-weight: 700;
@@ -62,7 +73,7 @@ body {
 .input-section label {
     display: block;
     margin-bottom: 8px;
-    color: #555;
+    color: #8b9db8;
     font-weight: 600;
     font-size: 14px;
 }
@@ -71,17 +82,23 @@ body {
     width: 100%;
     min-height: 100px;
     padding: 12px;
-    border: 2px solid #e0e0e0;
+    border: 1px solid #2a3545;
     border-radius: 10px;
     font-size: 16px;
     font-family: inherit;
     resize: vertical;
     transition: border-color 0.3s;
+    background: #1e2b3a;
+    color: #ffffff;
+}
+
+.input-section textarea::placeholder {
+    color: #4a6080;
 }
 
 .input-section textarea:focus {
     outline: none;
-    border-color: #ff6b35;
+    border-color: #e53935;
 }
 
 .controls {
@@ -108,7 +125,7 @@ body {
 }
 
 .control-group label {
-    color: #555;
+    color: #8b9db8;
     font-weight: 600;
     font-size: 14px;
 }
@@ -116,22 +133,23 @@ body {
 .control-group input[type="color"] {
     width: 100%;
     height: 50px;
-    border: 2px solid #e0e0e0;
+    border: 1px solid #2a3545;
     border-radius: 8px;
     cursor: pointer;
     transition: border-color 0.3s;
+    background: #1e2b3a;
 }
 
 .control-group input[type="color"]:focus {
     outline: none;
-    border-color: #ff6b35;
+    border-color: #e53935;
 }
 
 .control-group input[type="range"] {
     width: 100%;
     height: 8px;
     border-radius: 5px;
-    background: #e0e0e0;
+    background: #2a3545;
     outline: none;
     -webkit-appearance: none;
 }
@@ -142,7 +160,7 @@ body {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #ff6b35;
+    background: #e53935;
     cursor: pointer;
 }
 
@@ -150,25 +168,26 @@ body {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #ff6b35;
+    background: #e53935;
     cursor: pointer;
     border: none;
 }
 
 .control-group select {
     padding: 10px;
-    border: 2px solid #e0e0e0;
+    border: 1px solid #2a3545;
     border-radius: 8px;
     font-size: 14px;
     font-family: inherit;
-    background: white;
+    background: #1e2b3a;
+    color: #ffffff;
     cursor: pointer;
     transition: border-color 0.3s;
 }
 
 .control-group select:focus {
     outline: none;
-    border-color: #ff6b35;
+    border-color: #e53935;
 }
 
 .control-group input[type="checkbox"] {
@@ -176,6 +195,7 @@ body {
     height: 20px;
     cursor: pointer;
     margin-right: 8px;
+    accent-color: #e53935;
 }
 
 .control-group > label {
@@ -184,8 +204,9 @@ body {
     cursor: pointer;
 }
 
-#opacity-value, #font-size-value, #line-height-value, #letter-spacing-value {
-    color: #ff6b35;
+#opacity-value, #font-size-value, #line-height-value, #letter-spacing-value,
+#border-radius-value, #text-vertical-position-value {
+    color: #e53935;
     font-weight: 600;
     font-size: 14px;
 }
@@ -193,7 +214,7 @@ body {
 .download-btn {
     width: 100%;
     padding: 12px 20px;
-    background: #ff6b35;
+    background: #e53935;
     color: white;
     border: none;
     border-radius: 10px;
@@ -206,18 +227,18 @@ body {
 
 .download-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(255, 107, 53, 0.4);
+    box-shadow: 0 5px 15px rgba(229, 57, 53, 0.4);
 }
 
 .download-btn:active {
     transform: translateY(0);
-    box-shadow: 0 2px 5px rgba(255, 107, 53, 0.3);
+    box-shadow: 0 2px 5px rgba(229, 57, 53, 0.3);
 }
 
 .remove-bg-btn {
     margin-top: 8px;
     padding: 8px 12px;
-    background: #ff4757;
+    background: #c62828;
     color: white;
     border: none;
     border-radius: 6px;
@@ -229,7 +250,7 @@ body {
 }
 
 .remove-bg-btn:hover {
-    background: #ff3344;
+    background: #b71c1c;
 }
 
 .story-container {
@@ -240,7 +261,7 @@ body {
     margin: 0 auto;
     border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .story-background {
@@ -263,6 +284,7 @@ body {
     cursor: move;
     user-select: none;
     transition: transform 0.1s ease;
+    overflow: hidden;
 }
 
 .bg-image-preview {
@@ -316,14 +338,15 @@ body {
 }
 
 .preview-panel {
-    background: white;
+    background: #162030;
     border-radius: 20px;
     padding: 25px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    border: 1px solid #2a3545;
 }
 
 .preview-panel h2 {
-    color: #333;
+    color: #ffffff;
     margin-bottom: 15px;
     font-size: 24px;
     font-weight: 700;
@@ -335,7 +358,7 @@ body {
 }
 
 .emoji-btn {
-    background: #ff6b35;
+    background: #e53935;
     color: white;
     padding: 10px 16px;
     border: none;
@@ -344,13 +367,13 @@ body {
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     width: 100%;
 }
 
 .emoji-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 15px rgba(229, 57, 53, 0.4);
 }
 
 .emoji-panel {
@@ -358,12 +381,12 @@ body {
     top: 100%;
     left: 0;
     right: 0;
-    background: white;
-    border: 2px solid #e0e0e0;
+    background: #162030;
+    border: 1px solid #2a3545;
     border-radius: 12px;
     padding: 15px;
     margin-top: 8px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
     z-index: 1000;
     max-height: 500px;
     overflow-y: auto;
@@ -380,11 +403,11 @@ body {
 .emoji-section-title {
     font-size: 12px;
     font-weight: 600;
-    color: #666;
+    color: #8b9db8;
     text-transform: uppercase;
     margin-bottom: 10px;
     padding-bottom: 5px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #2a3545;
 }
 
 .emoji-grid {
@@ -394,8 +417,8 @@ body {
 }
 
 .emoji-item {
-    background: #f5f5f5;
-    border: 2px solid transparent;
+    background: #1e2b3a;
+    border: 1px solid transparent;
     border-radius: 8px;
     padding: 8px;
     font-size: 24px;
@@ -409,13 +432,33 @@ body {
 }
 
 .emoji-item:hover {
-    background: #e8e8e8;
-    border-color: #ff6b35;
+    background: #243040;
+    border-color: #e53935;
     transform: scale(1.1);
 }
 
 .emoji-item:active {
     transform: scale(0.95);
+}
+
+input[type="file"] {
+    color: #ffffff;
+}
+
+input[type="file"]::file-selector-button {
+    background: #1e2b3a;
+    color: #ffffff;
+    border: 1px solid #2a3545;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background: #2a3f55;
 }
 
 @media (max-width: 1024px) {

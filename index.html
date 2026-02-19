@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instagram text editor</title>
+    <title>Social text editor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&family=Montserrat:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Meow+Script&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <div class="editor-panel">
-            <h1>Instagram text editor</h1>
+            <h1>Social text editor</h1>
             
             <div class="input-section">
                 <label for="text-input">Write your text:</label>
@@ -1106,6 +1106,12 @@ Second line ✌️</textarea>
                             <option value="neon">Neon</option>
                             <option value="typewriter">Typewriter</option>
                             <option value="strong">Strong</option>
+                            <option value="google-sans">Google Sans</option>
+                            <option value="montserrat">Montserrat</option>
+                            <option value="playfair">Playfair Display</option>
+                            <option value="comic-sans">Comic Sans</option>
+                            <option value="google-sans-code">Google Sans Code</option>
+                            <option value="meow-script">Meow Script</option>
                             <option value="custom">Custom Font</option>
                         </select>
                     </div>
@@ -1229,6 +1235,11 @@ Second line ✌️</textarea>
                     </div>
                 </div>
 
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="text-to-filename"> Text to filename
+                    </label>
+                </div>
                 <div class="control-group">
                     <button id="download-btn" class="download-btn">Download PNG</button>
                 </div>

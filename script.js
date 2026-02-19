@@ -152,6 +152,12 @@ function initializeApp() {
             neon: 'CosmopolitanScript, sans-serif',
             typewriter: '"Courier New", monospace',
             strong: '"Bebas Neue", Impact, "Arial Black", sans-serif',
+            'google-sans': '"Google Sans", "Product Sans", Roboto, sans-serif',
+            montserrat: '"Montserrat", sans-serif',
+            playfair: '"Playfair Display", Georgia, serif',
+            'comic-sans': '"Comic Sans MS", "Comic Sans", cursive',
+            'google-sans-code': '"Google Sans Code", "Roboto Mono", "Courier New", monospace',
+            'meow-script': '"Meow Script", cursive',
             custom: customFontName ? `${customFontName}, sans-serif` : 'Arial, sans-serif'
         };
         return fonts[style] || fonts.classic;
@@ -508,7 +514,23 @@ function initializeApp() {
                     bottom = textCenterY + baseHalfHeight + descenderExtra + padding;
                 }
                 
-                return { width, shiftLeft, shiftRight, top, bottom };
+                // Detectar emojis en los bordes - la corrección se aplica DESPUÉS
+                // de la agrupación para no alterar los centros usados por dicha lógica.
+                const lineTextForBoundary = stripInvisibleModifiers(lineMetric.text).trim();
+
+                emojiRegex.lastIndex = 0;
+                const firstBMatch = emojiRegex.exec(lineTextForBoundary);
+                const firstCharIsEmoji = firstBMatch !== null && firstBMatch.index === 0;
+
+                emojiRegex.lastIndex = 0;
+                let lastBMatch = null, scanBMatch;
+                while ((scanBMatch = emojiRegex.exec(lineTextForBoundary)) !== null) {
+                    lastBMatch = scanBMatch;
+                }
+                const lastCharIsEmoji = lastBMatch !== null &&
+                    (lastBMatch.index + lastBMatch[0].length) === lineTextForBoundary.length;
+
+                return { width, shiftLeft, shiftRight, top, bottom, firstCharIsEmoji, lastCharIsEmoji };
             });
             
             // Apply "same width" rule: unificar líneas con anchos similares en un solo bloque
@@ -566,7 +588,24 @@ function initializeApp() {
                     });
                 }
             });
-            
+
+            // Corrección de emojis en los bordes: solo para líneas que NO están en un
+            // grupo multi-línea. Si la línea fue agrupada con otras, comparten el mismo
+            // shiftLeft/shiftRight; aplicar la corrección solo a una crearía un escalón.
+            const groupedLineIndices = new Set();
+            groups.forEach(group => {
+                if (group.length > 1) group.forEach(idx => groupedLineIndices.add(idx));
+            });
+            const emojiBoundaryOffset = size * 0.14;
+            lineRects.forEach((rect, idx) => {
+                if (groupedLineIndices.has(idx)) return;
+                if (rect.firstCharIsEmoji) rect.shiftLeft += emojiBoundaryOffset;
+                if (rect.lastCharIsEmoji) rect.shiftRight -= emojiBoundaryOffset;
+                if (rect.firstCharIsEmoji || rect.lastCharIsEmoji) {
+                    rect.width = rect.shiftRight - rect.shiftLeft;
+                }
+            });
+
             // Draw background as a single continuous path with curves at corners
             if (lineRects.length === 1) {
                 // Single line: simple rounded rectangle
@@ -807,38 +846,20 @@ function initializeApp() {
     // Event listeners
     textInput.addEventListener('input', renderText);
     textStyle.addEventListener('change', function() {
-        // Mostrar/ocultar el grupo de fuente personalizada
         if (textStyle.value === 'custom') {
             customFontGroup.style.display = 'block';
         } else {
             customFontGroup.style.display = 'none';
         }
-        // Forzar actualización del preview
-        // Usar requestAnimationFrame para asegurar que el DOM se actualice
-        requestAnimationFrame(() => {
-            // Verificar si la fuente está cargada antes de renderizar
-            const style = textStyle.value;
-            const fontFamily = getFontFamily(style);
-            
-            // Si es una fuente de Google Fonts, verificar que esté cargada
-            if (style === 'classic' || style === 'strong') {
-                // Verificar si la fuente está cargada
-                if (document.fonts && document.fonts.check) {
-                    const fontLoaded = document.fonts.check(`16px ${fontFamily}`);
-                    if (!fontLoaded) {
-                        // Esperar a que la fuente se cargue, con timeout de seguridad
-                        Promise.race([
-                            document.fonts.ready,
-                            new Promise(resolve => setTimeout(resolve, 500))
-                        ]).then(() => {
-                            renderText();
-                        });
-                        return;
-                    }
-                }
-            }
-            
-            // Renderizar inmediatamente
+        // Usar document.fonts.load() para garantizar que la fuente esté disponible
+        // antes de medir el texto con getBBox(), independientemente del estilo elegido.
+        const fontFamily = getFontFamily(textStyle.value);
+        const primaryFont = fontFamily.split(',')[0].trim().replace(/['"]/g, '');
+        const fontSize = document.getElementById('font-size').value;
+        Promise.race([
+            document.fonts.load(`${fontSize}px "${primaryFont}"`),
+            new Promise(resolve => setTimeout(resolve, 600))
+        ]).then(() => {
             renderText();
         });
     });
@@ -872,7 +893,7 @@ function initializeApp() {
         borderRadiusValue.textContent = borderRadiusSlider.value + 'px';
         renderText();
     });
-    
+
     if (textVerticalPosition && textVerticalPositionValue) {
         textVerticalPosition.addEventListener('input', function() {
             const offset = parseInt(textVerticalPosition.value, 10) || 0;
@@ -880,6 +901,21 @@ function initializeApp() {
             renderText();
         });
     }
+
+    // Doble click en el thumb del slider → resetear al valor por defecto.
+    // Disparar 'input' sintético reutiliza la lógica existente (update de span + renderText).
+    function addSliderReset(slider, defaultValue) {
+        slider.addEventListener('dblclick', function() {
+            slider.value = defaultValue;
+            slider.dispatchEvent(new Event('input'));
+        });
+    }
+    addSliderReset(bgOpacity, 100);
+    addSliderReset(fontSize, 33);
+    addSliderReset(lineHeight, 120);
+    addSliderReset(letterSpacing, 0);
+    addSliderReset(borderRadiusSlider, 10);
+    if (textVerticalPosition) addSliderReset(textVerticalPosition, 0);
     
     // Event listeners para imagen de fondo
     if (bgImageFile && removeBgImage && bgImagePreview) {
@@ -904,6 +940,39 @@ function initializeApp() {
             removeBgImage.style.display = 'none';
             bgImageFile.value = '';
         });
+    }
+
+    // Descarga una Google Font y la embebe como base64 para el export.
+    // Los navegadores bloquean @import URLs dentro de SVGs cargados como <img>,
+    // por eso hay que embeber la fuente exactamente igual que las fuentes locales.
+    async function embedGoogleFont(family, requestedWeight) {
+        const singleWeightFonts = ['Meow Script', 'Bebas Neue'];
+        const weight = singleWeightFonts.includes(family)
+            ? '400'
+            : (requestedWeight === 'bold' ? '700' : requestedWeight);
+        try {
+            const cssText = await fetch(
+                `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&display=swap`
+            ).then(r => r.text());
+
+            const declarations = [];
+            for (const [, block] of cssText.matchAll(/@font-face\s*\{([^}]+)\}/g)) {
+                const urlMatch  = block.match(/url\(['"]?([^'")]+)['"]?\)/);
+                const fmtMatch  = block.match(/format\(['"]([^'"]+)['"]\)/);
+                if (!urlMatch) continue;
+                const fontUrl = urlMatch[1];
+                const format  = fmtMatch ? fmtMatch[1] : 'woff2';
+                const mime    = `font/${format}`;
+                const b64     = arrayBufferToBase64(await fetch(fontUrl).then(r => r.arrayBuffer()));
+                declarations.push(
+                    `@font-face{font-family:'${family}';src:url(data:${mime};base64,${b64}) format('${format}');font-weight:${weight};font-style:normal;}`
+                );
+            }
+            return declarations.join(' ');
+        } catch (e) {
+            console.warn(`No se pudo embeber la fuente "${family}":`, e);
+            return '';
+        }
     }
 
     // Función para descargar el SVG como PNG (con fuentes embebidas en base64 para que el export use la misma fuente)
@@ -991,7 +1060,23 @@ function initializeApp() {
                 fontStyles.push(`@font-face{font-family:'${customFontName}';src:url(data:${mime};base64,${customFontBase64}) format('${format}');font-weight:normal;font-style:normal;}`);
             }
             
-            fontStyles.push('@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&display=swap");');
+            // Embeber la Google Font activa como base64 (los @import no funcionan
+            // en SVGs cargados como <img> por restricciones de seguridad del browser).
+            const googleFontMap = {
+                'strong':       'Bebas Neue',
+                'montserrat':   'Montserrat',
+                'playfair':     'Playfair Display',
+                'meow-script':  'Meow Script'
+            };
+            const activeGoogleFont = googleFontMap[textStyle.value];
+            if (activeGoogleFont) {
+                const currentWeight = bold.checked ? 'bold' : '600';
+                const embedded = await embedGoogleFont(activeGoogleFont, currentWeight);
+                if (embedded) fontStyles.push(embedded);
+            }
+
+            // @import de respaldo para browsers que sí soportan recursos externos en SVG
+            fontStyles.push('@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&family=Montserrat:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Meow+Script&display=swap");');
             
             const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
@@ -1095,7 +1180,15 @@ function initializeApp() {
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = 'instagram-text.png';
+                const textToFilename = document.getElementById('text-to-filename');
+                let filename = 'instagram-text.png';
+                if (textToFilename && textToFilename.checked) {
+                    const rawText = document.getElementById('text-input').value.trim();
+                    const noEmoji = rawText.replace(/\p{Emoji}/gu, '');
+                    const sanitized = noEmoji.replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+                    if (sanitized) filename = sanitized + '.png';
+                }
+                link.download = filename;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
