@@ -183,6 +183,148 @@ function initializeApp() {
     function getBorderRadius() {
         return parseInt(borderRadiusSlider.value) || 10;
     }
+
+    // ─── Cache LRU de mediciones de texto ──────────────────────────────────
+    // Cada keystroke disparaba 30-60 getBBox sobre elementos SVG temporales.
+    // Con cache, sólo se mide cuando aparece un (texto+estilo) nuevo.
+    const measureCache = new Map();
+    const MEASURE_CACHE_MAX = 256;
+
+    function measureTextWidth(text, fontFamily, size, weight, style, letterSpacing) {
+        if (!text) return 0;
+        const key = `${size}|${weight}|${style}|${letterSpacing}|${fontFamily}|${text}`;
+        const cached = measureCache.get(key);
+        if (cached !== undefined) {
+            measureCache.delete(key);
+            measureCache.set(key, cached);
+            return cached;
+        }
+        const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        el.setAttribute('x', '0');
+        el.setAttribute('y', '0');
+        el.textContent = text;
+        el.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${weight}; font-style: ${style}; letter-spacing: ${letterSpacing}px;`);
+        svg.appendChild(el);
+        const width = el.getBBox().width;
+        svg.removeChild(el);
+        measureCache.set(key, width);
+        if (measureCache.size > MEASURE_CACHE_MAX) {
+            const firstKey = measureCache.keys().next().value;
+            measureCache.delete(firstKey);
+        }
+        return width;
+    }
+
+    // ─── Helpers de path para el fondo ─────────────────────────────────────
+    // Clamp del radio: evita que arcos consecutivos se solapen (loops) cuando
+    // las líneas son angostas, los radios grandes, o las diferencias de ancho chicas.
+    function clampRadius(r, ...constraints) {
+        let v = r;
+        for (const c of constraints) {
+            if (c < v) v = c;
+        }
+        return Math.max(0, v);
+    }
+
+    function singleLinePath(rect, r) {
+        const w = rect.shiftRight - rect.shiftLeft;
+        const h = rect.bottom - rect.top;
+        const re = clampRadius(r, w / 2, h / 2);
+        if (re < 0.5) {
+            return `M ${rect.shiftLeft},${rect.top} L ${rect.shiftRight},${rect.top} L ${rect.shiftRight},${rect.bottom} L ${rect.shiftLeft},${rect.bottom} Z`;
+        }
+        return `M ${rect.shiftLeft + re},${rect.top} L ${rect.shiftRight - re},${rect.top} A ${re},${re} 0 0 1 ${rect.shiftRight},${rect.top + re} L ${rect.shiftRight},${rect.bottom - re} A ${re},${re} 0 0 1 ${rect.shiftRight - re},${rect.bottom} L ${rect.shiftLeft + re},${rect.bottom} A ${re},${re} 0 0 1 ${rect.shiftLeft},${rect.bottom - re} L ${rect.shiftLeft},${rect.top + re} A ${re},${re} 0 0 1 ${rect.shiftLeft + re},${rect.top} Z`;
+    }
+
+    // Transición en el borde DERECHO bajando de `curr` (línea superior) a `next` (inferior).
+    function rightTransition(curr, next, r) {
+        const diff = next.shiftRight - curr.shiftRight;
+        const midY = (curr.bottom + next.top) / 2;
+        if (Math.abs(diff) < 0.5) {
+            return [`L ${curr.shiftRight},${midY}`];
+        }
+        const re = clampRadius(r,
+            Math.abs(diff) / 2,
+            (curr.bottom - curr.top) / 2,
+            (next.bottom - next.top) / 2);
+        const segs = [];
+        if (diff > 0) {
+            // next es más ancha → arco hacia afuera (CCW) y después hacia adentro (CW)
+            segs.push(`L ${curr.shiftRight},${midY - re}`);
+            segs.push(`A ${re},${re} 0 0 0 ${curr.shiftRight + re},${midY}`);
+            segs.push(`L ${next.shiftRight - re},${midY}`);
+            segs.push(`A ${re},${re} 0 0 1 ${next.shiftRight},${midY + re}`);
+        } else {
+            // next es más angosta → adentro (CW) y después afuera (CCW)
+            segs.push(`L ${curr.shiftRight},${midY - re}`);
+            segs.push(`A ${re},${re} 0 0 1 ${curr.shiftRight - re},${midY}`);
+            segs.push(`L ${next.shiftRight + re},${midY}`);
+            segs.push(`A ${re},${re} 0 0 0 ${next.shiftRight},${midY + re}`);
+        }
+        return segs;
+    }
+
+    // Transición en el borde IZQUIERDO subiendo de `curr` (línea inferior) a `prev` (superior).
+    function leftTransition(curr, prev, r) {
+        const diff = prev.shiftLeft - curr.shiftLeft;
+        const midY = (prev.bottom + curr.top) / 2;
+        if (Math.abs(diff) < 0.5) {
+            return [`L ${curr.shiftLeft},${midY}`];
+        }
+        const re = clampRadius(r,
+            Math.abs(diff) / 2,
+            (curr.bottom - curr.top) / 2,
+            (prev.bottom - prev.top) / 2);
+        const segs = [];
+        if (diff > 0) {
+            // prev está desplazada a la derecha (curr más ancha por la izquierda)
+            segs.push(`L ${curr.shiftLeft},${midY + re}`);
+            segs.push(`A ${re},${re} 0 0 1 ${curr.shiftLeft + re},${midY}`);
+            segs.push(`L ${prev.shiftLeft - re},${midY}`);
+            segs.push(`A ${re},${re} 0 0 0 ${prev.shiftLeft},${midY - re}`);
+        } else {
+            // prev es más ancha por la izquierda
+            segs.push(`L ${curr.shiftLeft},${midY + re}`);
+            segs.push(`A ${re},${re} 0 0 0 ${curr.shiftLeft - re},${midY}`);
+            segs.push(`L ${prev.shiftLeft + re},${midY}`);
+            segs.push(`A ${re},${re} 0 0 1 ${prev.shiftLeft},${midY - re}`);
+        }
+        return segs;
+    }
+
+    function buildBackgroundPath(lineRects, r) {
+        if (lineRects.length === 1) {
+            return singleLinePath(lineRects[0], r);
+        }
+        const first = lineRects[0];
+        const last = lineRects[lineRects.length - 1];
+        const firstR = clampRadius(r, (first.shiftRight - first.shiftLeft) / 2, (first.bottom - first.top) / 2);
+        const lastR = clampRadius(r, (last.shiftRight - last.shiftLeft) / 2, (last.bottom - last.top) / 2);
+
+        const segs = [];
+        // Borde superior de la primera línea
+        segs.push(`M ${first.shiftLeft + firstR},${first.top}`);
+        segs.push(`L ${first.shiftRight - firstR},${first.top}`);
+        segs.push(`A ${firstR},${firstR} 0 0 1 ${first.shiftRight},${first.top + firstR}`);
+        // Lado DERECHO bajando
+        for (let i = 0; i < lineRects.length - 1; i++) {
+            segs.push(...rightTransition(lineRects[i], lineRects[i + 1], r));
+        }
+        // Esquina inferior derecha + borde inferior + esquina inferior izquierda
+        segs.push(`L ${last.shiftRight},${last.bottom - lastR}`);
+        segs.push(`A ${lastR},${lastR} 0 0 1 ${last.shiftRight - lastR},${last.bottom}`);
+        segs.push(`L ${last.shiftLeft + lastR},${last.bottom}`);
+        segs.push(`A ${lastR},${lastR} 0 0 1 ${last.shiftLeft},${last.bottom - lastR}`);
+        // Lado IZQUIERDO subiendo
+        for (let i = lineRects.length - 1; i > 0; i--) {
+            segs.push(...leftTransition(lineRects[i], lineRects[i - 1], r));
+        }
+        // Cierre: esquina superior izquierda
+        segs.push(`L ${first.shiftLeft},${first.top + firstR}`);
+        segs.push(`A ${firstR},${firstR} 0 0 1 ${first.shiftLeft + firstR},${first.top}`);
+        segs.push('Z');
+        return segs.join(' ');
+    }
     
     // Variable para la imagen de fondo
     let backgroundImageUrl = null;
@@ -278,45 +420,24 @@ function initializeApp() {
     }
 
 
-    // Función para dividir texto en líneas que quepan en el ancho disponible
+    // Función para dividir texto en líneas que quepan en el ancho disponible.
+    // Usa measureTextWidth (cache LRU), evitando crear/destruir elementos SVG por palabra.
     function wrapText(text, maxWidth, fontFamily, fontSize, fontWeight, fontStyle, letterSpacingPx) {
-        const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        tempGroup.style.visibility = 'hidden';
-        tempGroup.style.opacity = '0';
-        tempGroup.style.position = 'absolute';
-        svg.appendChild(tempGroup);
-
         const words = text.split(' ');
         const lines = [];
         let currentLine = '';
 
-        words.forEach((word, index) => {
+        for (const word of words) {
             const testLine = currentLine ? `${currentLine} ${word}` : word;
-            const testElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            testElement.setAttribute('x', '0');
-            testElement.setAttribute('y', '0');
-            testElement.textContent = testLine;
-            testElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${fontSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-            tempGroup.appendChild(testElement);
-            
-            const bbox = testElement.getBBox();
-            const testWidth = bbox.width;
-            
+            const testWidth = measureTextWidth(testLine, fontFamily, fontSize, fontWeight, fontStyle, letterSpacingPx);
             if (testWidth > maxWidth && currentLine) {
                 lines.push(currentLine);
                 currentLine = word;
             } else {
                 currentLine = testLine;
             }
-            
-            tempGroup.removeChild(testElement);
-        });
-
-        if (currentLine) {
-            lines.push(currentLine);
         }
-
-        svg.removeChild(tempGroup);
+        if (currentLine) lines.push(currentLine);
         return lines;
     }
 
@@ -402,29 +523,8 @@ function initializeApp() {
 
         if (wrappedLines.length === 0) return;
 
-        // Crear un grupo temporal para medir el texto
-        const tempGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        tempGroup.style.visibility = 'hidden';
-        tempGroup.style.opacity = '0';
-        tempGroup.style.position = 'absolute';
-        
-        // Crear elementos de texto para medir cada línea
-        const lineElements = [];
         const lineMetrics = [];
 
-        wrappedLines.forEach((wl) => {
-            const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            textElement.setAttribute('x', '0');
-            textElement.setAttribute('y', '0');
-            textElement.textContent = wl.text || ' ';
-            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${wl.size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-            tempGroup.appendChild(textElement);
-            lineElements.push(textElement);
-        });
-
-        // Agregar temporalmente al SVG para medir
-        svg.appendChild(tempGroup);
-        
         // Regex para detectar emojis reales (no variation selectors)
         const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu;
         
@@ -441,62 +541,44 @@ function initializeApp() {
         function stripInvisibleModifiers(str) {
             return str.replace(invisibleModifiersRegex, '');
         }
-        
+
         // Funciones para detectar astas ascendentes y descendentes
         // Ascendentes: b, d, f, h, k, l, t (y mayúsculas)
         // Descendentes: g, j, p, q, y
         function hasAscenders(str) {
             return /[bdfhkltBDFHKLTÁÉÍÓÚÀÈÌÒÙÂÊÎÔÛÄËÏÖÜA-Z0-9]/.test(str);
         }
-        
+
         function hasDescenders(str) {
             return /[gjpqyQ]/.test(str);
         }
-        
-        // Medir cada línea - crear elementos de medición sin modificadores invisibles
-        // para obtener el ancho visual real
-        // NOTA: Ahora el posicionamiento del texto NO incluye el padding del fondo
-        // El padding se aplicará uniformemente cuando se dibuja el fondo
+
+
+        // Medir cada línea usando el cache de mediciones.
+        // Para líneas con emoji removemos variation selectors antes de medir.
         let currentY = 0;
-        wrappedLines.forEach((wl, index) => {
-            const textElement = lineElements[index];
+        wrappedLines.forEach((wl) => {
             const line = wl.text;
             const lineSize = wl.size;
             const lineBoxHeight = wl.lineHeight;
-
-            // Detectar si la línea contiene emojis
             const hasEmoji = containsEmoji(line);
 
-            // Para obtener el ancho visual correcto, medimos el texto sin modificadores invisibles
-            // Esto es porque los variation selectors agregan ancho en getBBox pero son invisibles
             let textWidth;
-
             if (hasEmoji) {
                 const strippedLine = stripInvisibleModifiers(line);
-                const measureElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                measureElement.setAttribute('x', '0');
-                measureElement.setAttribute('y', '0');
-                measureElement.textContent = strippedLine;
-                measureElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${lineSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-                svg.appendChild(measureElement);
-
-                const strippedBBox = measureElement.getBBox();
-                textWidth = strippedBBox.width;
-
-                svg.removeChild(measureElement);
-
+                textWidth = measureTextWidth(strippedLine, fontFamily, lineSize, fontWeight, fontStyle, letterSpacingPx);
                 const emojiMatches = line.match(emojiRegex);
                 if (emojiMatches && emojiMatches.length > 0) {
+                    // Compensar el espacio extra que ocupan los emojis SVG (~28% asimétrico)
                     textWidth -= emojiMatches.length * (lineSize * 0.28);
                 }
             } else {
-                const bbox = textElement.getBBox();
-                textWidth = bbox.width;
+                textWidth = measureTextWidth(line, fontFamily, lineSize, fontWeight, fontStyle, letterSpacingPx);
             }
 
-            const minTextWidth = lineSize * 0.5;
-            if (textWidth < minTextWidth) {
-                textWidth = minTextWidth;
+            // Sólo forzar un mínimo cuando la línea está vacía (placeholder).
+            if (!line || line.trim() === '') {
+                textWidth = Math.max(textWidth, lineSize * 0.5);
             }
 
             lineMetrics.push({
@@ -512,9 +594,6 @@ function initializeApp() {
 
             currentY += lineBoxHeight;
         });
-
-        // Remover el grupo temporal
-        svg.removeChild(tempGroup);
 
         // Padding superior/inferior del bloque: depende del tamaño de la primera y última línea.
         const topPadding = lineMetrics[0] ? lineMetrics[0].padding : 0;
@@ -549,22 +628,18 @@ function initializeApp() {
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
 
-        // IMPLEMENTACIÓN EXACTA basada en el código de Stack Overflow
-        // Source: https://stackoverflow.com/a/49288455 (luca992)
+        // Construcción del fondo continuo basada en https://stackoverflow.com/a/49288455
         if (!isTransparent) {
             const bgRgba = hexToRgba(backgroundColor, opacity);
             const r = getBorderRadius();
-            
-            // Pre-calculate all line dimensions first
-            // NOTA: lineMetric.y es el centro de cada línea de texto
-            // El padding horizontal ya está incluido en el ancho
-            // El padding vertical SOLO se aplica al borde EXTERNO superior e inferior del bloque completo
+
+            // PASO 1: shifts iniciales (sin clamp al canvas todavía — eso va al final
+            // para que la agrupación trabaje sobre centros consistentes).
             const lineRects = lineMetrics.map((lineMetric, lnum) => {
                 const textWidth = lineMetric.width;
                 const lp = lineMetric.padding;
                 const ls = lineMetric.size;
-                // Ancho total del fondo = ancho del texto + padding propio de la línea en ambos lados
-                let width = textWidth + 2 * lp;
+                const width = textWidth + 2 * lp;
 
                 let shiftLeft, shiftRight;
                 if (alignment === 'right') {
@@ -574,58 +649,31 @@ function initializeApp() {
                     shiftLeft = lineMetric.x - lp;
                     shiftRight = shiftLeft + width;
                 } else {
-                    // Centro: el texto está centrado en lineMetric.x
-                    // El fondo debe estar igualmente centrado
-                    shiftLeft = lineMetric.x - (width / 2);
-                    shiftRight = lineMetric.x + (width / 2);
+                    shiftLeft = lineMetric.x - width / 2;
+                    shiftRight = lineMetric.x + width / 2;
                 }
-                
-                // Asegurar que no se salga del área visible
-                if (shiftLeft < 0) {
-                    shiftLeft = 0;
-                    shiftRight = width;
-                }
-                if (shiftRight > referenceWidth) {
-                    shiftRight = referenceWidth;
-                    shiftLeft = referenceWidth - width;
-                }
-                
-                // Calcular posiciones verticales del fondo
-                // El texto se renderiza en lineMetric.y + topPadding (ver más abajo)
-                const textCenterY = lineMetric.y + topPadding;
 
+                // Verticales: usar el tamaño DE ESTA línea para ascenders/descenders.
+                const textCenterY = lineMetric.y + topPadding;
                 const halfLineHeight = lineMetric.height / 2;
                 const isFirstLine = (lnum === 0);
                 const isLastLine = (lnum === lineMetrics.length - 1);
-
-                // Detectar astas en la línea actual
-                const lineText = lineMetric.text;
-                const lineHasAscenders = hasAscenders(lineText);
-                const lineHasDescenders = hasDescenders(lineText);
-
-                // Factor base para la mitad visual del texto (sin astas), proporcional al tamaño de ESTA línea.
+                const lineHasAscenders = hasAscenders(lineMetric.text);
+                const lineHasDescenders = hasDescenders(lineMetric.text);
                 const baseHalfHeight = ls * 0.22;
                 const ascenderExtra = lineHasAscenders ? ls * 0.12 : 0;
                 const descenderExtra = lineHasDescenders ? ls * 0.08 : 0;
 
                 let top = textCenterY - halfLineHeight;
                 let bottom = textCenterY + halfLineHeight;
+                if (isFirstLine) top = textCenterY - baseHalfHeight - ascenderExtra - lp;
+                if (isLastLine) bottom = textCenterY + baseHalfHeight + descenderExtra + lp;
 
-                if (isFirstLine) {
-                    top = textCenterY - baseHalfHeight - ascenderExtra - lp;
-                }
-                if (isLastLine) {
-                    bottom = textCenterY + baseHalfHeight + descenderExtra + lp;
-                }
-                
-                // Detectar emojis en los bordes - la corrección se aplica DESPUÉS
-                // de la agrupación para no alterar los centros usados por dicha lógica.
+                // Detectar emojis en los bordes para la corrección posterior
                 const lineTextForBoundary = stripInvisibleModifiers(lineMetric.text).trim();
-
                 emojiRegex.lastIndex = 0;
                 const firstBMatch = emojiRegex.exec(lineTextForBoundary);
                 const firstCharIsEmoji = firstBMatch !== null && firstBMatch.index === 0;
-
                 emojiRegex.lastIndex = 0;
                 let lastBMatch = null, scanBMatch;
                 while ((scanBMatch = emojiRegex.exec(lineTextForBoundary)) !== null) {
@@ -636,66 +684,45 @@ function initializeApp() {
 
                 return { width, shiftLeft, shiftRight, top, bottom, firstCharIsEmoji, lastCharIsEmoji };
             });
-            
-            // Apply "same width" rule: unificar líneas con anchos similares en un solo bloque
-            const sameWidthThreshold = r * 3;
-            
-            // Encontrar grupos de líneas con anchos similares
+
+            // PASO 2: agrupación "same width". Threshold desacoplado del border-radius
+            // (antes era `r*3`: con r=1 casi nada se agrupaba; con r=25 agrupaba demás).
+            const sameWidthThreshold = Math.max(r * 3, globalSize * 0.4);
             const groups = [];
             let currentGroup = [0];
-            
             for (let i = 1; i < lineRects.length; i++) {
-                const curr = lineRects[i];
-                const prev = lineRects[i - 1];
-                const widthDiff = Math.abs(curr.width - prev.width);
-                
-                if (widthDiff < sameWidthThreshold) {
-                    // Agregar a el grupo actual
+                if (Math.abs(lineRects[i].width - lineRects[i - 1].width) < sameWidthThreshold) {
                     currentGroup.push(i);
                 } else {
-                    // Cerrar grupo actual y empezar uno nuevo
-                    if (currentGroup.length > 0) {
-                        groups.push(currentGroup);
-                    }
+                    if (currentGroup.length > 0) groups.push(currentGroup);
                     currentGroup = [i];
                 }
             }
-            // Agregar el último grupo
-            if (currentGroup.length > 0) {
-                groups.push(currentGroup);
-            }
-            
-            // Para cada grupo, unificar todas las líneas al ancho máximo del grupo
+            if (currentGroup.length > 0) groups.push(currentGroup);
+
+            // Unificar al ancho máximo del grupo (sobre shifts no clampeados → centros consistentes)
             groups.forEach(group => {
-                if (group.length > 1) {
-                    // Encontrar el ancho máximo en el grupo
-                    let maxWidth = 0;
-                    group.forEach(idx => {
-                        maxWidth = Math.max(maxWidth, lineRects[idx].width);
-                    });
-                    
-                    // Aplicar el ancho máximo a todas las líneas del grupo
-                    group.forEach(idx => {
-                        const rect = lineRects[idx];
-                        if (rect.width !== maxWidth) {
-                            const center = (rect.shiftLeft + rect.shiftRight) / 2;
-                            if (alignment === 'right') {
-                                rect.shiftLeft = rect.shiftRight - maxWidth;
-                            } else if (alignment === 'left') {
-                                rect.shiftRight = rect.shiftLeft + maxWidth;
-                            } else {
-                                rect.shiftLeft = center - maxWidth / 2;
-                                rect.shiftRight = center + maxWidth / 2;
-                            }
-                            rect.width = maxWidth;
-                        }
-                    });
-                }
+                if (group.length <= 1) return;
+                let groupMaxWidth = 0;
+                group.forEach(idx => { groupMaxWidth = Math.max(groupMaxWidth, lineRects[idx].width); });
+                group.forEach(idx => {
+                    const rect = lineRects[idx];
+                    if (rect.width === groupMaxWidth) return;
+                    const center = (rect.shiftLeft + rect.shiftRight) / 2;
+                    if (alignment === 'right') {
+                        rect.shiftLeft = rect.shiftRight - groupMaxWidth;
+                    } else if (alignment === 'left') {
+                        rect.shiftRight = rect.shiftLeft + groupMaxWidth;
+                    } else {
+                        rect.shiftLeft = center - groupMaxWidth / 2;
+                        rect.shiftRight = center + groupMaxWidth / 2;
+                    }
+                    rect.width = groupMaxWidth;
+                });
             });
 
-            // Corrección de emojis en los bordes: solo para líneas que NO están en un
-            // grupo multi-línea. Si la línea fue agrupada con otras, comparten el mismo
-            // shiftLeft/shiftRight; aplicar la corrección solo a una crearía un escalón.
+            // PASO 3: corrección de emojis en bordes — sólo para líneas no agrupadas
+            // (en un grupo todas comparten shifts; aplicar offset crearía un escalón).
             const groupedLineIndices = new Set();
             groups.forEach(group => {
                 if (group.length > 1) group.forEach(idx => groupedLineIndices.add(idx));
@@ -710,120 +737,25 @@ function initializeApp() {
                 }
             });
 
-            // Draw background as a single continuous path with curves at corners
-            if (lineRects.length === 1) {
-                // Single line: simple rounded rectangle
-                const rect = lineRects[0];
-                const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                const pathData = `M ${rect.shiftLeft + r},${rect.top} L ${rect.shiftRight - r},${rect.top} A ${r},${r} 0 0 1 ${rect.shiftRight},${rect.top + r} L ${rect.shiftRight},${rect.bottom - r} A ${r},${r} 0 0 1 ${rect.shiftRight - r},${rect.bottom} L ${rect.shiftLeft + r},${rect.bottom} A ${r},${r} 0 0 1 ${rect.shiftLeft},${rect.bottom - r} L ${rect.shiftLeft},${rect.top + r} A ${r},${r} 0 0 1 ${rect.shiftLeft + r},${rect.top} Z`;
-                pathElement.setAttribute('d', pathData);
-                pathElement.setAttribute('fill', bgRgba);
-                svg.appendChild(pathElement);
-            } else {
-                // Multiple lines: build a single continuous path tracing the outer contour
-                const pathSegments = [];
-                const first = lineRects[0];
-                const last = lineRects[lineRects.length - 1];
-                
-                // Start at top-left of first line
-                pathSegments.push(`M ${first.shiftLeft + r},${first.top}`);
-                
-                // Top edge of first line
-                pathSegments.push(`L ${first.shiftRight - r},${first.top}`);
-                pathSegments.push(`A ${r},${r} 0 0 1 ${first.shiftRight},${first.top + r}`);
-                
-                // Go DOWN the right side
-                for (let i = 0; i < lineRects.length; i++) {
-                    const curr = lineRects[i];
-                    const next = i < lineRects.length - 1 ? lineRects[i + 1] : null;
-                    
-                    if (next) {
-                        const diff = next.shiftRight - curr.shiftRight;
-                        // midY is the transition point between lines
-                        const midY = (curr.bottom + next.top) / 2;
-                        
-                        if (Math.abs(diff) < 0.5) {
-                            // Same right edge - continue straight down
-                            pathSegments.push(`L ${curr.shiftRight},${midY}`);
-                        } else if (diff > 0) {
-                            // Next line is WIDER on right - usar arcos con esquinas redondeadas
-                            // Bajar verticalmente hasta antes de la curva superior
-                            pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
-                            // Curva hacia afuera (esquina redondeada superior)
-                            pathSegments.push(`A ${r},${r} 0 0 0 ${curr.shiftRight + r},${midY}`);
-                            // Línea horizontal completamente recta (asegurar que sea horizontal)
-                            pathSegments.push(`L ${next.shiftRight - r},${midY}`);
-                            // Curva hacia adentro (esquina redondeada inferior)
-                            pathSegments.push(`A ${r},${r} 0 0 1 ${next.shiftRight},${midY + r}`);
-                        } else {
-                            // Next line is NARROWER on right - usar arcos con esquinas redondeadas
-                            // Bajar verticalmente hasta antes de la curva superior
-                            pathSegments.push(`L ${curr.shiftRight},${midY - r}`);
-                            // Curva hacia adentro (esquina redondeada superior)
-                            pathSegments.push(`A ${r},${r} 0 0 1 ${curr.shiftRight - r},${midY}`);
-                            // Línea horizontal completamente recta (asegurar que sea horizontal)
-                            pathSegments.push(`L ${next.shiftRight + r},${midY}`);
-                            // Curva hacia afuera (esquina redondeada inferior)
-                            pathSegments.push(`A ${r},${r} 0 0 0 ${next.shiftRight},${midY + r}`);
-                        }
-                    }
+            // PASO 4: clamp al canvas al FINAL, una vez que ancho y posición son definitivos.
+            lineRects.forEach(rect => {
+                if (rect.shiftLeft < 0) {
+                    rect.shiftRight -= rect.shiftLeft;
+                    rect.shiftLeft = 0;
                 }
-                
-                // Bottom-right corner of last line
-                pathSegments.push(`L ${last.shiftRight},${last.bottom - r}`);
-                pathSegments.push(`A ${r},${r} 0 0 1 ${last.shiftRight - r},${last.bottom}`);
-                
-                // Bottom edge of last line
-                pathSegments.push(`L ${last.shiftLeft + r},${last.bottom}`);
-                pathSegments.push(`A ${r},${r} 0 0 1 ${last.shiftLeft},${last.bottom - r}`);
-                
-                // Go UP the left side
-                for (let i = lineRects.length - 1; i >= 0; i--) {
-                    const curr = lineRects[i];
-                    const prev = i > 0 ? lineRects[i - 1] : null;
-                    
-                    if (prev) {
-                        const diff = prev.shiftLeft - curr.shiftLeft;
-                        // midY is the transition point between lines
-                        const midY = (prev.bottom + curr.top) / 2;
-                        
-                        if (Math.abs(diff) < 0.5) {
-                            // Same left edge - continue straight up
-                            pathSegments.push(`L ${curr.shiftLeft},${midY}`);
-                        } else if (diff > 0) {
-                            // Previous line is NARROWER on left - usar arcos con esquinas redondeadas
-                            // Subir verticalmente hasta antes de la curva inferior
-                            pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
-                            // Curva hacia adentro (esquina redondeada inferior)
-                            pathSegments.push(`A ${r},${r} 0 0 1 ${curr.shiftLeft + r},${midY}`);
-                            // Línea horizontal completamente recta (asegurar que sea horizontal)
-                            pathSegments.push(`L ${prev.shiftLeft - r},${midY}`);
-                            // Curva hacia afuera (esquina redondeada superior)
-                            pathSegments.push(`A ${r},${r} 0 0 0 ${prev.shiftLeft},${midY - r}`);
-                        } else {
-                            // Previous line is WIDER on left - usar arcos con esquinas redondeadas
-                            // Subir verticalmente hasta antes de la curva inferior
-                            pathSegments.push(`L ${curr.shiftLeft},${midY + r}`);
-                            // Curva hacia afuera (esquina redondeada inferior)
-                            pathSegments.push(`A ${r},${r} 0 0 0 ${curr.shiftLeft - r},${midY}`);
-                            // Línea horizontal completamente recta (asegurar que sea horizontal)
-                            pathSegments.push(`L ${prev.shiftLeft + r},${midY}`);
-                            // Curva hacia adentro (esquina redondeada superior)
-                            pathSegments.push(`A ${r},${r} 0 0 1 ${prev.shiftLeft},${midY - r}`);
-                        }
-                    }
+                if (rect.shiftRight > referenceWidth) {
+                    rect.shiftLeft -= (rect.shiftRight - referenceWidth);
+                    rect.shiftRight = referenceWidth;
                 }
-                
-                // Top-left corner of first line
-                pathSegments.push(`L ${first.shiftLeft},${first.top + r}`);
-                pathSegments.push(`A ${r},${r} 0 0 1 ${first.shiftLeft + r},${first.top}`);
-                pathSegments.push('Z');
-                
-                const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                pathElement.setAttribute('d', pathSegments.join(' '));
-                pathElement.setAttribute('fill', bgRgba);
-                svg.appendChild(pathElement);
-            }
+                rect.width = rect.shiftRight - rect.shiftLeft;
+            });
+
+            // PASO 5: dibujar el path con clamp de radios (evita loops y arcos cruzados
+            // cuando |diff_ancho| < 2r, líneas angostas, o gaps verticales chicos).
+            const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            pathElement.setAttribute('d', buildBackgroundPath(lineRects, r));
+            pathElement.setAttribute('fill', bgRgba);
+            svg.appendChild(pathElement);
         }
 
         // Renderizar texto con posicionamiento preciso
@@ -956,10 +888,13 @@ function initializeApp() {
         const fontFamily = getFontFamily(textStyle.value);
         const primaryFont = fontFamily.split(',')[0].trim().replace(/['"]/g, '');
         const fontSize = document.getElementById('font-size').value;
+        // Invalidar mediciones cacheadas: pueden haberse tomado con fuente fallback.
+        measureCache.clear();
         Promise.race([
             document.fonts.load(`${fontSize}px "${primaryFont}"`),
             new Promise(resolve => setTimeout(resolve, 600))
         ]).then(() => {
+            measureCache.clear();
             renderText();
         });
     });
@@ -970,6 +905,7 @@ function initializeApp() {
             loadCustomFont(file)
                 .then(() => {
                     console.log('Custom font loaded:', customFontName);
+                    measureCache.clear();
                     renderText();
                 })
                 .catch(error => {
@@ -1557,6 +1493,15 @@ function initializeApp() {
     
     // Inicializar
     renderText();
+
+    // Las @font-face locales pueden no estar listas en el primer render.
+    // Cuando lo estén, invalidar el cache de mediciones (que pudo cachear con fallback) y re-renderizar.
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+            measureCache.clear();
+            renderText();
+        });
+    }
 
     // Funcionalidad de arrastrar el SVG
     let isDragging = false;
