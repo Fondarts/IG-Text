@@ -25,6 +25,13 @@
     font-style: normal;
 }
 
+@font-face {
+    font-family: 'SF-Pro-Display-BlackItalic';
+    src: url('Fonts/SF-Pro-Display-BlackItalic.otf') format('opentype');
+    font-weight: 900;
+    font-style: italic;
+}
+
 /* ── Paleta Honda AI Studio ───────────────────────────────────────────────
    Fondo página  : #0d1520
    Panel/card    : #162030

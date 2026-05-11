@@ -158,6 +158,7 @@ function initializeApp() {
             'comic-sans': '"Comic Sans MS", "Comic Sans", cursive',
             'google-sans-code': '"Google Sans Code", "Roboto Mono", "Courier New", monospace',
             'meow-script': '"Meow Script", cursive',
+            'sf-pro-display-black-italic': 'SF-Pro-Display-BlackItalic, -apple-system, BlinkMacSystemFont, sans-serif',
             custom: customFontName ? `${customFontName}, sans-serif` : 'Arial, sans-serif'
         };
         return fonts[style] || fonts.classic;
@@ -1039,19 +1040,22 @@ function initializeApp() {
             const formatMap = { truetype: 'truetype', opentype: 'opentype', woff: 'woff', woff2: 'woff2' };
             
             try {
-                const [aveny, cosmo, proxima] = await Promise.all([
+                const [aveny, cosmo, proxima, sfpro] = await Promise.all([
                     fetch(baseUrl + 'Fonts/Aveny-T.ttf').then(r => r.arrayBuffer()),
                     fetch(baseUrl + 'Fonts/CosmopolitanScriptRegular.otf').then(r => r.arrayBuffer()),
-                    fetch(baseUrl + 'Fonts/Proxima-Nova-Semibold.ttf').then(r => r.arrayBuffer())
+                    fetch(baseUrl + 'Fonts/Proxima-Nova-Semibold.ttf').then(r => r.arrayBuffer()),
+                    fetch(baseUrl + 'Fonts/SF-Pro-Display-BlackItalic.otf').then(r => r.arrayBuffer())
                 ]);
                 fontStyles.push(`@font-face{font-family:'Aveny-T';src:url(data:${mimeMap.truetype};base64,${arrayBufferToBase64(aveny)}) format('${formatMap.truetype}');font-weight:normal;font-style:normal;}`);
                 fontStyles.push(`@font-face{font-family:'CosmopolitanScript';src:url(data:${mimeMap.opentype};base64,${arrayBufferToBase64(cosmo)}) format('${formatMap.opentype}');font-weight:normal;font-style:normal;}`);
                 fontStyles.push(`@font-face{font-family:'Proxima-Nova-Semibold';src:url(data:${mimeMap.truetype};base64,${arrayBufferToBase64(proxima)}) format('${formatMap.truetype}');font-weight:600;font-style:normal;}`);
+                fontStyles.push(`@font-face{font-family:'SF-Pro-Display-BlackItalic';src:url(data:${mimeMap.opentype};base64,${arrayBufferToBase64(sfpro)}) format('${formatMap.opentype}');font-weight:900;font-style:italic;}`);
             } catch (e) {
                 console.warn('No se pudieron cargar fuentes locales para export, usando URLs:', e);
                 fontStyles.push(`@font-face{font-family:'Aveny-T';src:url('${baseUrl}Fonts/Aveny-T.ttf') format('truetype');font-weight:normal;font-style:normal;}`);
                 fontStyles.push(`@font-face{font-family:'CosmopolitanScript';src:url('${baseUrl}Fonts/CosmopolitanScriptRegular.otf') format('opentype');font-weight:normal;font-style:normal;}`);
                 fontStyles.push(`@font-face{font-family:'Proxima-Nova-Semibold';src:url('${baseUrl}Fonts/Proxima-Nova-Semibold.ttf') format('truetype');font-weight:600;font-style:normal;}`);
+                fontStyles.push(`@font-face{font-family:'SF-Pro-Display-BlackItalic';src:url('${baseUrl}Fonts/SF-Pro-Display-BlackItalic.otf') format('opentype');font-weight:900;font-style:italic;}`);
             }
             
             if (customFontBase64 && customFontName) {
