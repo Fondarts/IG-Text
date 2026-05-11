@@ -468,6 +468,68 @@ input[type="file"]::file-selector-button:hover {
     background: #2a3f55;
 }
 
+.per-line-size-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.per-line-size-row {
+    display: grid;
+    grid-template-columns: minmax(80px, 1fr) 2fr auto auto;
+    align-items: center;
+    gap: 8px;
+    background: #1e2b3a;
+    border: 1px solid #2a3545;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+.per-line-size-row .per-line-label {
+    color: #8b9db8;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.per-line-size-row input[type="range"] {
+    width: 100%;
+    margin: 0;
+}
+
+.per-line-size-row .per-line-value {
+    color: #ffffff;
+    font-size: 12px;
+    min-width: 38px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.per-line-size-row .per-line-reset {
+    background: transparent;
+    border: 1px solid #2a3545;
+    color: #8b9db8;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+.per-line-size-row .per-line-reset:not(:disabled):hover {
+    border-color: #e53935;
+    color: #e53935;
+}
+
+.per-line-size-row .per-line-reset:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
 @media (max-width: 1024px) {
     .container {
         grid-template-columns: 1fr;

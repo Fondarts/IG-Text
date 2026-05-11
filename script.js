@@ -39,6 +39,119 @@ function initializeApp() {
     const emojiPanel = document.getElementById('emoji-panel');
     const presetSelect = document.getElementById('preset-select');
     const savePresetBtn = document.getElementById('save-preset-btn');
+    const perLineSizeGroup = document.getElementById('per-line-size-group');
+    const perLineSizeList = document.getElementById('per-line-size-list');
+
+    // Per-line font size overrides: index N = size override for manual line N (null = follow global slider).
+    let perLineSizes = [];
+
+    function getLineSize(idx) {
+        const v = perLineSizes[idx];
+        if (v == null) return null;
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) ? Math.max(n, 15) : null;
+    }
+
+    let perLineUISignature = '';
+
+    function previewForLine(line) {
+        const trimmed = line.trim();
+        if (trimmed === '') return '(empty)';
+        return trimmed.length > 28 ? trimmed.slice(0, 28) + '…' : trimmed;
+    }
+
+    function rebuildPerLineSizeUI() {
+        if (!perLineSizeGroup || !perLineSizeList) return;
+        const manualLines = (textInput.value || '').split('\n');
+
+        // Sync overrides array length to manual lines count
+        while (perLineSizes.length < manualLines.length) perLineSizes.push(null);
+        perLineSizes.length = manualLines.length;
+
+        const visible = manualLines.length > 1;
+        perLineSizeGroup.style.display = visible ? '' : 'none';
+        if (!visible) {
+            perLineSizeList.innerHTML = '';
+            perLineUISignature = '';
+            return;
+        }
+
+        const globalSize = parseInt(fontSize.value, 10) || 33;
+        const signature = manualLines.join('\n');
+
+        // Fast path: misma cantidad y mismo texto → solo actualizar valores
+        // (evita destruir el slider que el usuario está arrastrando).
+        if (signature === perLineUISignature && perLineSizeList.children.length === manualLines.length) {
+            for (let i = 0; i < manualLines.length; i++) {
+                const row = perLineSizeList.children[i];
+                const override = getLineSize(i);
+                const effective = override != null ? override : globalSize;
+                const slider = row.querySelector('input[type="range"]');
+                const valueLabel = row.querySelector('.per-line-value');
+                const resetBtn = row.querySelector('.per-line-reset');
+                if (slider && document.activeElement !== slider) {
+                    slider.value = String(effective);
+                }
+                if (valueLabel) valueLabel.textContent = `${effective}px`;
+                if (resetBtn) resetBtn.disabled = override == null;
+            }
+            return;
+        }
+
+        // Slow path: el texto cambió, reconstruir filas
+        perLineSizeList.innerHTML = '';
+        perLineUISignature = signature;
+
+        manualLines.forEach((line, i) => {
+            const row = document.createElement('div');
+            row.className = 'per-line-size-row';
+
+            const override = getLineSize(i);
+            const effective = override != null ? override : globalSize;
+            const isCustom = override != null;
+
+            const label = document.createElement('span');
+            label.className = 'per-line-label';
+            label.title = line;
+            label.textContent = `L${i + 1}: ${previewForLine(line)}`;
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = '15';
+            slider.max = '90';
+            slider.value = String(effective);
+
+            const valueLabel = document.createElement('span');
+            valueLabel.className = 'per-line-value';
+            valueLabel.textContent = `${effective}px`;
+
+            const resetBtn = document.createElement('button');
+            resetBtn.type = 'button';
+            resetBtn.className = 'per-line-reset';
+            resetBtn.textContent = '↺';
+            resetBtn.title = 'Reset to global size';
+            resetBtn.disabled = !isCustom;
+
+            slider.addEventListener('input', () => {
+                const val = parseInt(slider.value, 10) || globalSize;
+                perLineSizes[i] = val;
+                valueLabel.textContent = `${val}px`;
+                resetBtn.disabled = false;
+                renderText();
+            });
+
+            resetBtn.addEventListener('click', () => {
+                perLineSizes[i] = null;
+                renderText();
+            });
+
+            row.appendChild(label);
+            row.appendChild(slider);
+            row.appendChild(valueLabel);
+            row.appendChild(resetBtn);
+            perLineSizeList.appendChild(row);
+        });
+    }
 
     // Verificar que todos los elementos esenciales existan
     if (!textInput || !svg || !textStyle || !customFontGroup || !customFontFile || !textColor || !bgColor || 
@@ -216,13 +329,21 @@ function initializeApp() {
         const opacity = bgOpacity.value / 100;
         // Leer el valor del slider correctamente
         const sliderValue = fontSize.value;
-        const size = Math.max(parseInt(sliderValue, 10) || 33, 15);
-        
-        // PADDING PROPORCIONAL AL TAMAÑO DE FUENTE
-        // El padding escala con el tamaño de la fuente para mantener proporciones consistentes
-        // ~42% del tamaño de fuente da un padding visual equilibrado
-        const padding = Math.round(size * 0.42);
-        
+        const globalSize = Math.max(parseInt(sliderValue, 10) || 33, 15);
+
+        // Mantener sincronizada la UI de tamaños por línea con el textarea / slider global.
+        rebuildPerLineSizeUI();
+
+        // Per-line size resolver: cada manualLine puede tener un override (perLineSizes[i])
+        function sizeForManualLine(idx) {
+            const v = getLineSize(idx);
+            return v != null ? v : globalSize;
+        }
+        // Padding proporcional al tamaño (~42% del tamaño de fuente da un padding visual equilibrado).
+        function paddingForSize(s) {
+            return Math.round(s * 0.42);
+        }
+
         const isBold = bold.checked;
         const isItalic = italic.checked;
         const isTransparent = transparentBg.checked;
@@ -257,19 +378,25 @@ function initializeApp() {
         svg.setAttribute('viewBox', `0 0 ${referenceWidth} ${referenceHeight}`);
         svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-        let availableWidth = referenceWidth - (padding * 2);
-
         // Dividir el texto en líneas manuales primero
         const manualLines = text.split('\n');
+        // wrappedLines ahora contiene objetos {text, size, padding, lineHeight}
+        // para soportar tamaño de fuente por línea.
         const wrappedLines = [];
 
-        // Aplicar ajuste de líneas a cada línea manual
-        manualLines.forEach((line) => {
+        manualLines.forEach((line, i) => {
+            const lineSize = sizeForManualLine(i);
+            const linePad = paddingForSize(lineSize);
+            const lineH = lineSize * lineHeightMultiplier;
+            // Misma fórmula de ancho disponible que la versión global: referenceWidth - 4 * padding.
+            const innerWidth = referenceWidth - 4 * linePad;
             if (line.trim() === '' && manualLines.length === 1) {
-                wrappedLines.push(' ');
+                wrappedLines.push({ text: ' ', size: lineSize, padding: linePad, lineHeight: lineH });
             } else if (line.trim() !== '') {
-                const wrapped = wrapText(line.trim(), availableWidth - (padding * 2), fontFamily, size, fontWeight, fontStyle, letterSpacingPx);
-                wrappedLines.push(...wrapped);
+                const wrapped = wrapText(line.trim(), innerWidth, fontFamily, lineSize, fontWeight, fontStyle, letterSpacingPx);
+                wrapped.forEach(w => {
+                    wrappedLines.push({ text: w, size: lineSize, padding: linePad, lineHeight: lineH });
+                });
             }
         });
 
@@ -285,21 +412,18 @@ function initializeApp() {
         const lineElements = [];
         const lineMetrics = [];
 
-        wrappedLines.forEach((line) => {
+        wrappedLines.forEach((wl) => {
             const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             textElement.setAttribute('x', '0');
             textElement.setAttribute('y', '0');
-            textElement.textContent = line || ' ';
-            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+            textElement.textContent = wl.text || ' ';
+            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${wl.size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
             tempGroup.appendChild(textElement);
             lineElements.push(textElement);
         });
 
         // Agregar temporalmente al SVG para medir
         svg.appendChild(tempGroup);
-        
-        // Calcular la altura de línea consistente basada en el tamaño de fuente y el multiplicador
-        const calculatedLineHeight = size * lineHeightMultiplier;
         
         // Regex para detectar emojis reales (no variation selectors)
         const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1F02F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/gu;
@@ -332,94 +456,88 @@ function initializeApp() {
         // Medir cada línea - crear elementos de medición sin modificadores invisibles
         // para obtener el ancho visual real
         // NOTA: Ahora el posicionamiento del texto NO incluye el padding del fondo
-        // El padding se aplicará uniformemente cuando se dibuje el fondo
+        // El padding se aplicará uniformemente cuando se dibuja el fondo
         let currentY = 0;
-        wrappedLines.forEach((line, index) => {
+        wrappedLines.forEach((wl, index) => {
             const textElement = lineElements[index];
-            
-            // Usar altura consistente para todas las líneas
-            const lineBoxHeight = calculatedLineHeight;
-            
+            const line = wl.text;
+            const lineSize = wl.size;
+            const lineBoxHeight = wl.lineHeight;
+
             // Detectar si la línea contiene emojis
             const hasEmoji = containsEmoji(line);
-            
+
             // Para obtener el ancho visual correcto, medimos el texto sin modificadores invisibles
             // Esto es porque los variation selectors agregan ancho en getBBox pero son invisibles
             let textWidth;
-            
+
             if (hasEmoji) {
-                // Crear un elemento temporal con el texto sin modificadores para medir
                 const strippedLine = stripInvisibleModifiers(line);
                 const measureElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 measureElement.setAttribute('x', '0');
                 measureElement.setAttribute('y', '0');
                 measureElement.textContent = strippedLine;
-                measureElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+                measureElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${lineSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
                 svg.appendChild(measureElement);
-                
+
                 const strippedBBox = measureElement.getBBox();
                 textWidth = strippedBBox.width;
-                
+
                 svg.removeChild(measureElement);
-                
-                // Ajuste para emojis: los emojis SVG tienden a tener espacio interno
-                // asimétrico (más espacio a la derecha). Compensamos ~28% del tamaño
-                // por cada emoji para lograr padding visual uniforme
+
                 const emojiMatches = line.match(emojiRegex);
                 if (emojiMatches && emojiMatches.length > 0) {
-                    textWidth -= emojiMatches.length * (size * 0.28);
+                    textWidth -= emojiMatches.length * (lineSize * 0.28);
                 }
             } else {
-                // Para texto sin emojis, usar getBBox directamente
                 const bbox = textElement.getBBox();
                 textWidth = bbox.width;
             }
-            
-            // Asegurarse de que el ancho no sea menor que un mínimo razonable
-            const minTextWidth = size * 0.5;
+
+            const minTextWidth = lineSize * 0.5;
             if (textWidth < minTextWidth) {
                 textWidth = minTextWidth;
             }
-            
-            // lineMetric.y es el centro de la caja de línea, SIN padding
-            // El padding se agrega uniformemente cuando se dibuja el fondo
+
             lineMetrics.push({
                 text: line,
                 width: textWidth,
                 height: lineBoxHeight,
-                x: 0, // Se calculará según alineación
-                y: currentY + lineBoxHeight / 2, // Centro de la línea
-                hasEmoji: hasEmoji
+                x: 0,
+                y: currentY + lineBoxHeight / 2,
+                hasEmoji: hasEmoji,
+                size: lineSize,
+                padding: wl.padding
             });
-            
+
             currentY += lineBoxHeight;
         });
 
         // Remover el grupo temporal
         svg.removeChild(tempGroup);
 
-        // Calcular dimensiones totales
+        // Padding superior/inferior del bloque: depende del tamaño de la primera y última línea.
+        const topPadding = lineMetrics[0] ? lineMetrics[0].padding : 0;
+        const bottomPadding = lineMetrics[lineMetrics.length - 1] ? lineMetrics[lineMetrics.length - 1].padding : 0;
+
+        // Calcular dimensiones totales: cada línea aporta su propio padding horizontal a su ancho
         let tempMaxWidth = 0;
         lineMetrics.forEach(m => {
-            tempMaxWidth = Math.max(tempMaxWidth, m.width);
+            tempMaxWidth = Math.max(tempMaxWidth, m.width + 2 * m.padding);
         });
-        // Asegurar que maxWidth no exceda el ancho disponible del contenedor
-        const maxWidth = Math.min(tempMaxWidth + (padding * 2), referenceWidth);
-        const totalHeight = lineMetrics.reduce((sum, m) => sum + m.height, 0) + (padding * 2);
+        const maxWidth = Math.min(tempMaxWidth, referenceWidth);
+        const totalHeight = lineMetrics.reduce((sum, m) => sum + m.height, 0) + topPadding + bottomPadding;
         
         // Recalcular posiciones X según la alineación
         // NOTA: Las posiciones del texto ahora son relativas al área de contenido (sin padding)
         // El padding se aplicará uniformemente cuando se dibuje el fondo y se posicione el texto
         lineMetrics.forEach((metric) => {
             if (alignment === 'center') {
-                // Para centrado, usamos el centro del área de referencia
                 metric.x = referenceWidth / 2;
             } else if (alignment === 'right') {
-                // Alineación derecha: el texto termina en referenceWidth - padding
-                metric.x = referenceWidth - padding;
+                metric.x = referenceWidth - metric.padding;
             } else {
-                // Izquierda: el texto empieza en padding
-                metric.x = padding;
+                metric.x = metric.padding;
             }
         });
 
@@ -443,19 +561,17 @@ function initializeApp() {
             // El padding vertical SOLO se aplica al borde EXTERNO superior e inferior del bloque completo
             const lineRects = lineMetrics.map((lineMetric, lnum) => {
                 const textWidth = lineMetric.width;
-                // Ancho total del fondo = ancho del texto + padding uniforme en ambos lados
-                let width = textWidth + 2 * padding;
-                
+                const lp = lineMetric.padding;
+                const ls = lineMetric.size;
+                // Ancho total del fondo = ancho del texto + padding propio de la línea en ambos lados
+                let width = textWidth + 2 * lp;
+
                 let shiftLeft, shiftRight;
                 if (alignment === 'right') {
-                    // Alineación derecha: el texto termina en lineMetric.x
-                    // El fondo debe extenderse padding más a la derecha
-                    shiftRight = lineMetric.x + padding;
+                    shiftRight = lineMetric.x + lp;
                     shiftLeft = shiftRight - width;
                 } else if (alignment === 'left') {
-                    // Alineación izquierda: el texto empieza en lineMetric.x
-                    // El fondo debe empezar padding antes
-                    shiftLeft = lineMetric.x - padding;
+                    shiftLeft = lineMetric.x - lp;
                     shiftRight = shiftLeft + width;
                 } else {
                     // Centro: el texto está centrado en lineMetric.x
@@ -475,44 +591,31 @@ function initializeApp() {
                 }
                 
                 // Calcular posiciones verticales del fondo
-                // lineMetric.y es el centro vertical de la línea de texto (sin incluir padding)
-                // El texto se renderiza en y + padding (ver más abajo)
-                // Por lo tanto, el centro real del texto en el SVG es: lineMetric.y + padding
-                const textCenterY = lineMetric.y + padding;
-                
-                // PADDING UNIFORME: Usar exactamente el mismo padding en todos los lados
-                // El padding horizontal es exactamente 'padding' desde el borde del texto
-                // Para el vertical, ajustamos según las astas ascendentes y descendentes
+                // El texto se renderiza en lineMetric.y + topPadding (ver más abajo)
+                const textCenterY = lineMetric.y + topPadding;
+
                 const halfLineHeight = lineMetric.height / 2;
                 const isFirstLine = (lnum === 0);
                 const isLastLine = (lnum === lineMetrics.length - 1);
-                
+
                 // Detectar astas en la línea actual
                 const lineText = lineMetric.text;
                 const lineHasAscenders = hasAscenders(lineText);
                 const lineHasDescenders = hasDescenders(lineText);
-                
-                // Factor base para la mitad visual del texto (sin astas)
-                // Letras minúsculas sin astas ocupan ~45% del tamaño de fuente
-                const baseHalfHeight = size * 0.22;
-                
-                // Ajuste adicional para astas (las astas agregan ~30% extra)
-                const ascenderExtra = lineHasAscenders ? size * 0.12 : 0;
-                const descenderExtra = lineHasDescenders ? size * 0.08 : 0;
-                
-                // Calcular los bordes de la caja de línea
-                // Para líneas intermedias, usamos halfLineHeight para que no se solapen
+
+                // Factor base para la mitad visual del texto (sin astas), proporcional al tamaño de ESTA línea.
+                const baseHalfHeight = ls * 0.22;
+                const ascenderExtra = lineHasAscenders ? ls * 0.12 : 0;
+                const descenderExtra = lineHasDescenders ? ls * 0.08 : 0;
+
                 let top = textCenterY - halfLineHeight;
                 let bottom = textCenterY + halfLineHeight;
-                
-                // Para los bordes externos, usamos padding ajustado por astas
+
                 if (isFirstLine) {
-                    // Si hay ascendentes, el texto se extiende más arriba
-                    top = textCenterY - baseHalfHeight - ascenderExtra - padding;
+                    top = textCenterY - baseHalfHeight - ascenderExtra - lp;
                 }
                 if (isLastLine) {
-                    // Si hay descendentes, el texto se extiende más abajo
-                    bottom = textCenterY + baseHalfHeight + descenderExtra + padding;
+                    bottom = textCenterY + baseHalfHeight + descenderExtra + lp;
                 }
                 
                 // Detectar emojis en los bordes - la corrección se aplica DESPUÉS
@@ -597,11 +700,11 @@ function initializeApp() {
             groups.forEach(group => {
                 if (group.length > 1) group.forEach(idx => groupedLineIndices.add(idx));
             });
-            const emojiBoundaryOffset = size * 0.14;
             lineRects.forEach((rect, idx) => {
                 if (groupedLineIndices.has(idx)) return;
-                if (rect.firstCharIsEmoji) rect.shiftLeft += emojiBoundaryOffset;
-                if (rect.lastCharIsEmoji) rect.shiftRight -= emojiBoundaryOffset;
+                const offset = lineMetrics[idx].size * 0.14;
+                if (rect.firstCharIsEmoji) rect.shiftLeft += offset;
+                if (rect.lastCharIsEmoji) rect.shiftRight -= offset;
                 if (rect.firstCharIsEmoji || rect.lastCharIsEmoji) {
                     rect.width = rect.shiftRight - rect.shiftLeft;
                 }
@@ -725,16 +828,14 @@ function initializeApp() {
 
         // Renderizar texto con posicionamiento preciso
         lineMetrics.forEach((lineMetric) => {
+            const lineSize = lineMetric.size;
             const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             textElement.setAttribute('x', lineMetric.x);
-            
-            // Usar 'central' para el baseline vertical - centra el texto matemáticamente
-            // Sumamos padding a la posición Y porque lineMetric.y no incluye el offset del padding
-            // Aplicamos el offset vertical solo al texto (no al fondo)
-            textElement.setAttribute('y', lineMetric.y + padding + textVerticalOffset);
+
+            // 'central' centra verticalmente; lineMetric.y no incluye el topPadding del bloque.
+            textElement.setAttribute('y', lineMetric.y + topPadding + textVerticalOffset);
             textElement.setAttribute('dominant-baseline', 'central');
-            
-            // Establecer text-anchor según la alineación
+
             if (alignment === 'center') {
                 textElement.setAttribute('text-anchor', 'middle');
             } else if (alignment === 'right') {
@@ -742,13 +843,13 @@ function initializeApp() {
             } else {
                 textElement.setAttribute('text-anchor', 'start');
             }
-            
+
             textElement.setAttribute('fill', txtColor);
-            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-            
+            textElement.setAttribute('style', `font-family: ${fontFamily}; font-size: ${lineSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+
             // Dividir el texto en segmentos (texto normal y emojis) para aplicar diferentes tamaños
             const text = lineMetric.text;
-            const emojiSize = size * 0.80; // Emojis 20% más pequeños
+            const emojiSize = lineSize * 0.80; // Emojis 20% más pequeños
             
             // Solo dividir si la línea contiene emojis
             if (lineMetric.hasEmoji) {
@@ -787,11 +888,9 @@ function initializeApp() {
                 // Renderizar cada parte con su tamaño correspondiente
                 parts.forEach((part, index) => {
                     const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                    tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : size}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-                    // Ajustar posición vertical de emojis para alinearlos mejor con el texto
-                    // El desplazamiento es proporcional al tamaño de fuente para mantener consistencia
+                    tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : lineSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
                     if (part.isEmoji) {
-                        const dyValue = size * 0.02; // Aproximadamente 2% del tamaño de fuente hacia abajo para centrar
+                        const dyValue = lineSize * 0.02;
                         tspan.setAttribute('dy', dyValue.toString());
                     }
                     tspan.textContent = part.text;
@@ -806,7 +905,7 @@ function initializeApp() {
         });
 
         // Actualizar valores de UI
-        fontSizeValue.textContent = `${size}px`;
+        fontSizeValue.textContent = `${globalSize}px`;
         opacityValue.textContent = `${Math.round(opacity * 100)}%`;
         lineHeightValue.textContent = lineHeightMultiplier.toFixed(1);
         letterSpacingValue.textContent = `${letterSpacingPx}px`;
@@ -1342,7 +1441,8 @@ function initializeApp() {
             transparentBg: transparentBg.checked,
             textAlign: textAlign.value,
             safeZones: safeZonesSelect ? safeZonesSelect.value : 'none',
-            backgroundImageUrl: backgroundImageUrl
+            backgroundImageUrl: backgroundImageUrl,
+            perLineSizes: perLineSizes.slice()
         };
 
         const presets = getPresets();
@@ -1378,6 +1478,9 @@ function initializeApp() {
         if (safeZonesSelect) {
             safeZonesSelect.value = preset.safeZones || 'none';
         }
+
+        perLineSizes = Array.isArray(preset.perLineSizes) ? preset.perLineSizes.slice() : [];
+        perLineUISignature = '';
 
         // Actualizar valores mostrados
         opacityValue.textContent = `${Math.round(bgOpacity.value)}%`;
