@@ -41,6 +41,122 @@ function initializeApp() {
     const savePresetBtn = document.getElementById('save-preset-btn');
     const perLineSizeGroup = document.getElementById('per-line-size-group');
     const perLineSizeList = document.getElementById('per-line-size-list');
+    // Anillos olímpicos: no existe un emoji Unicode (símbolo registrado por el COI),
+    // así que se trata como un "emoji-imagen". Al insertarlo se agrega al texto un
+    // carácter centinela del Área de Uso Privado (no imprime glifo en ninguna fuente);
+    // renderText() lo detecta y dibuja un <image> inline en su lugar, midiendo la
+    // posición real del hueco reservado con getStart/getEndPositionOfChar.
+    // SVG con interlocking real, recortado a los límites visibles de los anillos
+    // (viewBox "2 16 56 28" → relación 2:1) y embebido como data URI para que también
+    // funcione en el PNG exportado.
+    const OLYMPIC_RINGS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="2 16 56 28">' +
+        '<path style="fill:#F3D55B;" d="M19.369,26.473c0.152-0.009,0.302-0.023,0.456-0.023c0.171,0,0.338,0.015,0.506,0.026c-0.013-0.208-0.032-0.414-0.032-0.625c0-0.466,0.044-0.922,0.108-1.371c-0.194-0.012-0.386-0.03-0.583-0.03c-0.18,0-0.356,0.017-0.534,0.027c0.064,0.45,0.109,0.906,0.109,1.373C19.4,26.06,19.382,26.266,19.369,26.473z"/>' +
+        '<path style="fill:#F3D55B;" d="M17.324,26.875c0.045-0.336,0.076-0.677,0.076-1.025c0-0.361-0.034-0.713-0.082-1.06c-3.942,1.057-6.893,4.533-7.162,8.737c0.712-0.042,1.397-0.179,2.045-0.402C12.592,30.209,14.616,27.809,17.324,26.875z"/>' +
+        '<path style="fill:#F3D55B;" d="M19.825,41.85c-3.886,0-7.099-2.895-7.618-6.64c-0.635,0.17-1.294,0.276-1.973,0.313c0.671,4.699,4.71,8.327,9.591,8.327c4.882,0,8.922-3.629,9.592-8.329c-0.678-0.041-1.337-0.149-1.971-0.323C26.932,38.949,23.715,41.85,19.825,41.85z"/>' +
+        '<path style="fill:#F3D55B;" d="M22.38,24.802c-0.047,0.344-0.08,0.692-0.08,1.048c0,0.355,0.033,0.702,0.079,1.044c2.675,0.945,4.673,3.323,5.067,6.212c0.648,0.229,1.334,0.372,2.048,0.419C29.225,29.339,26.297,25.874,22.38,24.802z"/>' +
+        '<path style="fill:#24AE5F;" d="M37.63,26.831c0.041-0.322,0.07-0.648,0.07-0.981c0-0.37-0.035-0.732-0.086-1.088c-3.997,1.022-7.001,4.526-7.27,8.771c0.708-0.031,1.392-0.153,2.038-0.364C32.764,30.19,34.849,27.739,37.63,26.831z"/>' +
+        '<path style="fill:#24AE5F;" d="M42.686,26.938c2.602,0.968,4.539,3.299,4.941,6.124c0.649,0.241,1.337,0.399,2.054,0.457c-0.269-4.145-3.144-7.584-7.006-8.689c-0.045,0.335-0.076,0.673-0.076,1.02C42.6,26.22,42.635,26.581,42.686,26.938z"/>' +
+        '<path style="fill:#24AE5F;" d="M40.013,41.85c-3.876,0-7.083-2.881-7.614-6.612c-0.637,0.163-1.297,0.262-1.976,0.291c0.673,4.696,4.711,8.321,9.591,8.321c4.884,0,8.926-3.632,9.593-8.335c-0.678-0.048-1.336-0.164-1.968-0.345C47.136,38.934,43.912,41.85,40.013,41.85z"/>' +
+        '<path style="fill:#24AE5F;" d="M39.669,26.467c0.115-0.005,0.228-0.017,0.344-0.017c0.209,0,0.414,0.015,0.619,0.031c-0.014-0.21-0.032-0.418-0.032-0.631c0-0.465,0.044-0.918,0.108-1.365c-0.23-0.016-0.46-0.035-0.694-0.035c-0.143,0-0.281,0.015-0.422,0.021c0.065,0.452,0.11,0.91,0.11,1.379C39.7,26.058,39.682,26.262,39.669,26.467z"/>' +
+        '<path style="fill:#0096E6;" d="M19.369,26.473c-0.712,0.042-1.397,0.179-2.045,0.402c-0.39,2.916-2.415,5.316-5.123,6.25c-0.045,0.336-0.076,0.677-0.076,1.025c0,0.361,0.034,0.713,0.082,1.06C16.148,34.153,19.1,30.677,19.369,26.473z"/>' +
+        '<path style="fill:#0096E6;" d="M10.157,33.527C10.005,33.536,9.854,33.55,9.7,33.55c-4.246,0-7.7-3.454-7.7-7.7s3.454-7.7,7.7-7.7c3.886,0,7.099,2.895,7.618,6.64c0.635-0.17,1.294-0.276,1.973-0.313c-0.671-4.699-4.71-8.327-9.591-8.327c-5.349,0-9.7,4.352-9.7,9.7s4.352,9.7,9.7,9.7c0.18,0,0.356-0.017,0.534-0.027c-0.064-0.45-0.109-0.906-0.109-1.373C10.125,33.94,10.143,33.734,10.157,33.527z"/>' +
+        '<path style="fill:#F3D55B;" d="M12.125,34.15c0-0.348,0.031-0.689,0.076-1.025c-0.647,0.223-1.333,0.36-2.045,0.402c-0.013,0.207-0.032,0.413-0.032,0.623c0,0.467,0.045,0.923,0.109,1.373c0.679-0.037,1.338-0.143,1.973-0.313C12.159,34.862,12.125,34.51,12.125,34.15z"/>' +
+        '<path style="fill:#0096E6;" d="M17.4,25.85c0,0.348-0.031,0.689-0.076,1.025c0.647-0.223,1.333-0.36,2.045-0.402c0.013-0.207,0.032-0.413,0.032-0.623c0-0.467-0.045-0.923-0.109-1.373c-0.679,0.037-1.338,0.143-1.973,0.313C17.367,25.138,17.4,25.49,17.4,25.85z"/>' +
+        '<path style="fill:#38454F;" d="M30,18.15c3.876,0,7.083,2.881,7.614,6.612c0.637-0.163,1.297-0.262,1.976-0.291C38.917,19.775,34.879,16.15,30,16.15c-4.882,0-8.922,3.629-9.592,8.329c0.678,0.041,1.337,0.149,1.971,0.323C22.894,21.051,26.11,18.15,30,18.15z"/>' +
+        '<path style="fill:#38454F;" d="M39.669,26.467c-0.708,0.031-1.392,0.153-2.038,0.364c-0.381,2.979-2.466,5.43-5.248,6.338c-0.041,0.322-0.07,0.648-0.07,0.981c0,0.37,0.035,0.732,0.086,1.088C36.396,34.215,39.4,30.712,39.669,26.467z"/>' +
+        '<path style="fill:#38454F;" d="M30.344,33.533C30.229,33.538,30.116,33.55,30,33.55c-0.171,0-0.338-0.015-0.506-0.026c0.013,0.208,0.032,0.414,0.032,0.625c0,0.466-0.044,0.922-0.108,1.371c0.194,0.012,0.386,0.03,0.583,0.03c0.143,0,0.281-0.015,0.422-0.021c-0.065-0.452-0.11-0.91-0.11-1.379C30.312,33.942,30.331,33.738,30.344,33.533z"/>' +
+        '<path style="fill:#38454F;" d="M22.379,26.894c-0.648-0.229-1.334-0.372-2.048-0.419c0.269,4.186,3.197,7.65,7.114,8.722c0.047-0.344,0.08-0.692,0.08-1.048c0-0.355-0.033-0.702-0.079-1.044C24.771,32.161,22.773,29.783,22.379,26.894z"/>' +
+        '<path style="fill:#38454F;" d="M29.494,33.525c-0.714-0.047-1.4-0.19-2.048-0.419c0.047,0.342,0.079,0.689,0.079,1.044c0,0.356-0.033,0.704-0.08,1.048c0.634,0.174,1.293,0.282,1.971,0.323c0.064-0.449,0.108-0.904,0.108-1.371C29.525,33.939,29.507,33.732,29.494,33.525z"/>' +
+        '<path style="fill:#F3D55B;" d="M20.331,26.475c0.714,0.047,1.4,0.19,2.048,0.419c-0.047-0.342-0.079-0.689-0.079-1.044c0-0.356,0.033-0.704,0.08-1.048c-0.634-0.174-1.293-0.282-1.971-0.323c-0.064,0.449-0.108,0.904-0.108,1.371C20.3,26.061,20.318,26.268,20.331,26.475z"/>' +
+        '<path style="fill:#24AE5F;" d="M32.312,34.15c0-0.333,0.028-0.659,0.07-0.981c-0.646,0.211-1.33,0.333-2.038,0.364c-0.013,0.205-0.031,0.409-0.031,0.617c0,0.469,0.045,0.927,0.11,1.379c0.68-0.029,1.34-0.128,1.976-0.291C32.348,34.881,32.312,34.52,32.312,34.15z"/>' +
+        '<path style="fill:#38454F;" d="M37.7,25.85c0,0.333-0.028,0.659-0.07,0.981c0.646-0.211,1.33-0.333,2.038-0.364c0.013-0.205,0.031-0.409,0.031-0.617c0-0.469-0.045-0.927-0.11-1.379c-0.68,0.029-1.34,0.128-1.976,0.291C37.665,25.119,37.7,25.48,37.7,25.85z"/>' +
+        '<path style="fill:#E64C3C;" d="M50.3,16.15c-4.884,0-8.926,3.632-9.593,8.335c0.678,0.048,1.336,0.164,1.968,0.345c0.502-3.764,3.725-6.68,7.625-6.68c4.246,0,7.7,3.454,7.7,7.7s-3.454,7.7-7.7,7.7c-0.209,0-0.414-0.015-0.619-0.031c0.014,0.21,0.032,0.418,0.032,0.631c0,0.465-0.044,0.918-0.108,1.365c0.23,0.016,0.46,0.035,0.694,0.035c5.349,0,9.7-4.352,9.7-9.7S55.648,16.15,50.3,16.15z"/>' +
+        '<path style="fill:#E64C3C;" d="M42.686,26.938c-0.649-0.241-1.337-0.399-2.054-0.457c0.269,4.145,3.144,7.584,7.006,8.689c0.045-0.335,0.076-0.673,0.076-1.02c0-0.37-0.035-0.731-0.086-1.088C45.025,32.094,43.088,29.763,42.686,26.938z"/>' +
+        '<path style="fill:#E64C3C;" d="M49.681,33.519c-0.717-0.057-1.405-0.215-2.054-0.457c0.051,0.356,0.086,0.718,0.086,1.088c0,0.347-0.031,0.685-0.076,1.02c0.632,0.181,1.29,0.297,1.968,0.345c0.063-0.447,0.108-0.901,0.108-1.365C49.713,33.937,49.695,33.729,49.681,33.519z"/>' +
+        '<path style="fill:#24AE5F;" d="M40.632,26.481c0.717,0.057,1.405,0.215,2.054,0.457C42.635,26.581,42.6,26.22,42.6,25.85c0-0.347,0.031-0.685,0.076-1.02c-0.632-0.181-1.29-0.297-1.968-0.345c-0.063,0.447-0.108,0.901-0.108,1.365C40.6,26.063,40.618,26.271,40.632,26.481z"/>' +
+        '</svg>';
+    const OLYMPIC_RINGS_DATAURI = 'data:image/svg+xml;base64,' + btoa(OLYMPIC_RINGS_SVG);
+    const OLYMPIC_RINGS_ASPECT = 56 / 28; // ancho / alto del viewBox recortado
+
+    // Registro de "emoji-imagen": cada uno usa un carácter centinela del Área de Uso
+    // Privado (sin glifo en ninguna fuente). renderText() los detecta y dibuja un
+    // <image> inline; el picker muestra la imagen y al click inserta el centinela.
+    // (Las banderas de países NO van acá: se resuelven solas vía Twemoji, ver abajo.)
+    const IMAGE_EMOJIS = [
+        { char: String.fromCharCode(0xE000), dataURI: OLYMPIC_RINGS_DATAURI, aspect: OLYMPIC_RINGS_ASPECT, label: 'Anillos olímpicos' }
+    ];
+    const IMAGE_EMOJI_BY_CHAR = {};
+    IMAGE_EMOJIS.forEach(e => { IMAGE_EMOJI_BY_CHAR[e.char] = e; });
+    const IMAGE_EMOJI_CHARCLASS = '[' + IMAGE_EMOJIS.map(e => e.char).join('') + ']';
+    // Alto objetivo del emoji-imagen ≈ 0.85x el tamaño de fuente; el ancho sale del aspecto.
+    function imageEmojiReservedWidth(lineSize, aspect) { return lineSize * 0.85 * aspect; }
+
+    // ---- Banderas como imágenes (Twemoji) -------------------------------------
+    // En Windows, Chrome/Edge NO renderizan los emojis de bandera (pares de
+    // indicadores regionales): la fuente del sistema muestra las dos letras del país
+    // (US, AR, …). Solución estándar: renderizar la bandera como imagen del set
+    // Twemoji, calculando el archivo desde los codepoints del emoji. Sirve para
+    // cualquier bandera de país (par de indicadores regionales), sin código por bandera.
+    const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg/';
+    // Par de indicadores regionales = una bandera de país. (u + g: detección global.)
+    const FLAG_RE = /[\u{1F1E6}-\u{1F1FF}]{2}/gu;
+    function isCountryFlag(str) { FLAG_RE.lastIndex = 0; return FLAG_RE.test(str); }
+    // Codepoints en hex minúscula unidos por '-' (regla de Twemoji: para banderas no
+    // hay ZWJ ni VS16, así que es directo).
+    function flagToTwemojiCode(flag) {
+        const cps = [];
+        for (const ch of flag) cps.push(ch.codePointAt(0).toString(16));
+        return cps.join('-');
+    }
+    function flagTwemojiUrl(flag) { return TWEMOJI_BASE + flagToTwemojiCode(flag) + '.svg'; }
+
+    // Cache de banderas: emoji -> 'data:...' (listo) | 'failed'. Para el preview/export
+    // necesitamos data URI embebido (un <image> con href externo no se rasteriza al
+    // exportar el SVG como imagen).
+    const flagDataURICache = new Map();
+    const flagPromiseCache = new Map(); // emoji -> Promise<string|null> (descarga en vuelo)
+    let onFlagLoadedRerender = null;    // se asigna a renderText más abajo
+
+    // Re-render coalescido: muchas banderas resolviéndose juntas colapsan en un render.
+    let flagRerenderScheduled = false;
+    function scheduleFlagRerender() {
+        if (flagRerenderScheduled) return;
+        flagRerenderScheduled = true;
+        requestAnimationFrame(() => {
+            flagRerenderScheduled = false;
+            if (typeof onFlagLoadedRerender === 'function') onFlagLoadedRerender();
+        });
+    }
+
+    // Descarga (una sola vez) el SVG de la bandera y lo cachea como data URI.
+    // Devuelve una promesa para poder esperarla antes de exportar.
+    function loadFlag(flag) {
+        if (flagPromiseCache.has(flag)) return flagPromiseCache.get(flag);
+        const p = fetch(flagTwemojiUrl(flag))
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(svgText => {
+                const dataURI = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+                flagDataURICache.set(flag, dataURI);
+                return dataURI;
+            })
+            .catch(err => {
+                console.warn('No se pudo cargar la bandera Twemoji', flag, err);
+                flagDataURICache.set(flag, 'failed');
+                return null;
+            });
+        flagPromiseCache.set(flag, p);
+        return p;
+    }
+
+    // Versión síncrona para el render: data URI si ya está, o null (y dispara la
+    // descarga + un re-render coalescido cuando llegue).
+    function getFlagDataURI(flag) {
+        const cached = flagDataURICache.get(flag);
+        if (typeof cached === 'string' && cached.startsWith('data:')) return cached;
+        if (cached === 'failed') return null;
+        loadFlag(flag).then(scheduleFlagRerender);
+        return null;
+    }
 
     // Per-line font size overrides: index N = size override for manual line N (null = follow global slider).
     let perLineSizes = [];
@@ -401,6 +517,12 @@ function initializeApp() {
 
     // Función para obtener la fuente según el estilo
     function getFontFamily(style) {
+        // Fuentes del sistema cargadas dinámicamente (Local Font Access API).
+        // El valor del option es "sys:<Family Name>".
+        if (style && style.startsWith('sys:')) {
+            const family = style.slice(4);
+            return `"${family}", sans-serif`;
+        }
         const fonts = {
             classic: 'Proxima-Nova-Semibold, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
             modern: 'Aveny-T, sans-serif',
@@ -499,6 +621,18 @@ function initializeApp() {
         svg.setAttribute('viewBox', `0 0 ${referenceWidth} ${referenceHeight}`);
         svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
+        // Regex global para los centinelas de emoji-imagen (anillos, bandera USA, …).
+        const IMAGE_EMOJI_RE_G = new RegExp(IMAGE_EMOJI_CHARCLASS, 'g');
+        // Suma del ancho reservado por todos los emoji-imagen de una línea.
+        function imageEmojiReservedSum(str, lineSize) {
+            let sum = 0;
+            for (const ch of str) {
+                const spec = IMAGE_EMOJI_BY_CHAR[ch];
+                if (spec) sum += imageEmojiReservedWidth(lineSize, spec.aspect);
+            }
+            return sum;
+        }
+
         // Dividir el texto en líneas manuales primero
         const manualLines = text.split('\n');
         // wrappedLines ahora contiene objetos {text, size, padding, lineHeight}
@@ -561,20 +695,33 @@ function initializeApp() {
             const line = wl.text;
             const lineSize = wl.size;
             const lineBoxHeight = wl.lineHeight;
-            const hasEmoji = containsEmoji(line);
+            // Los emoji-imagen (centinelas PUA) y las banderas de país (que se dibujan
+            // como imagen Twemoji) no son glifos de fuente: se miden aparte con su ancho
+            // reservado y se quitan antes de medir el texto. Las banderas son cuadradas.
+            // Una bandera que falló (offline) se deja como texto para coincidir con el
+            // render (que cae al glifo en ese caso).
+            let imageReservedSum = imageEmojiReservedSum(line, lineSize);
+            const lineForMeasure = line.replace(IMAGE_EMOJI_RE_G, '').replace(FLAG_RE, (m) => {
+                if (flagDataURICache.get(m) === 'failed') return m; // se mide como texto
+                imageReservedSum += imageEmojiReservedWidth(lineSize, 1);
+                return '';
+            });
+            const hasEmoji = containsEmoji(lineForMeasure);
 
             let textWidth;
             if (hasEmoji) {
-                const strippedLine = stripInvisibleModifiers(line);
+                const strippedLine = stripInvisibleModifiers(lineForMeasure);
                 textWidth = measureTextWidth(strippedLine, fontFamily, lineSize, fontWeight, fontStyle, letterSpacingPx);
-                const emojiMatches = line.match(emojiRegex);
+                const emojiMatches = lineForMeasure.match(emojiRegex);
                 if (emojiMatches && emojiMatches.length > 0) {
                     // Compensar el espacio extra que ocupan los emojis SVG (~28% asimétrico)
                     textWidth -= emojiMatches.length * (lineSize * 0.28);
                 }
             } else {
-                textWidth = measureTextWidth(line, fontFamily, lineSize, fontWeight, fontStyle, letterSpacingPx);
+                textWidth = measureTextWidth(lineForMeasure, fontFamily, lineSize, fontWeight, fontStyle, letterSpacingPx);
             }
+
+            textWidth += imageReservedSum;
 
             // Sólo forzar un mínimo cuando la línea está vacía (placeholder).
             if (!line || line.trim() === '') {
@@ -585,6 +732,7 @@ function initializeApp() {
                 text: line,
                 width: textWidth,
                 height: lineBoxHeight,
+                hasImageEmoji: imageReservedSum > 0,
                 x: 0,
                 y: currentY + lineBoxHeight / 2,
                 hasEmoji: hasEmoji,
@@ -669,20 +817,31 @@ function initializeApp() {
                 if (isFirstLine) top = textCenterY - baseHalfHeight - ascenderExtra - lp;
                 if (isLastLine) bottom = textCenterY + baseHalfHeight + descenderExtra + lp;
 
-                // Detectar emojis en los bordes para la corrección posterior
+                // Detectar emojis en los bordes para la corrección posterior.
+                // OJO: los emoji-imagen (banderas Twemoji y centinelas) llenan su caja
+                // reservada y NO deben encogerse como un glifo de fuente — si no, el lado
+                // de la imagen queda con menos padding que el texto del otro lado.
                 const lineTextForBoundary = stripInvisibleModifiers(lineMetric.text).trim();
+                // Detección por code points (sin regex anclado: el motor del navegador
+                // falla con [..]{2}$ + flag u sobre pares de indicadores regionales).
+                const cpsB = [...lineTextForBoundary];
+                const isRegInd = ch => { const c = ch ? ch.codePointAt(0) : 0; return c >= 0x1F1E6 && c <= 0x1F1FF; };
+                const startsWithImage = !!IMAGE_EMOJI_BY_CHAR[cpsB[0]] ||
+                    (cpsB.length >= 2 && isRegInd(cpsB[0]) && isRegInd(cpsB[1]));
+                const endsWithImage = !!IMAGE_EMOJI_BY_CHAR[cpsB[cpsB.length - 1]] ||
+                    (cpsB.length >= 2 && isRegInd(cpsB[cpsB.length - 1]) && isRegInd(cpsB[cpsB.length - 2]));
                 emojiRegex.lastIndex = 0;
                 const firstBMatch = emojiRegex.exec(lineTextForBoundary);
-                const firstCharIsEmoji = firstBMatch !== null && firstBMatch.index === 0;
+                const firstCharIsEmoji = !startsWithImage && firstBMatch !== null && firstBMatch.index === 0;
                 emojiRegex.lastIndex = 0;
                 let lastBMatch = null, scanBMatch;
                 while ((scanBMatch = emojiRegex.exec(lineTextForBoundary)) !== null) {
                     lastBMatch = scanBMatch;
                 }
-                const lastCharIsEmoji = lastBMatch !== null &&
+                const lastCharIsEmoji = !endsWithImage && lastBMatch !== null &&
                     (lastBMatch.index + lastBMatch[0].length) === lineTextForBoundary.length;
 
-                return { width, shiftLeft, shiftRight, top, bottom, firstCharIsEmoji, lastCharIsEmoji };
+                return { width, shiftLeft, shiftRight, top, bottom, firstCharIsEmoji, lastCharIsEmoji, startsWithImage, endsWithImage };
             });
 
             // PASO 2: agrupación "same width". Threshold desacoplado del border-radius
@@ -730,10 +889,16 @@ function initializeApp() {
             lineRects.forEach((rect, idx) => {
                 if (groupedLineIndices.has(idx)) return;
                 const offset = lineMetrics[idx].size * 0.14;
+                // Emoji-imagen (banderas/centinelas): llenan su caja sin side-bearing, así que
+                // se EXPANDE el fondo para darles un respiro similar al del texto del otro lado.
+                const imgEdge = lineMetrics[idx].size * 0.08;
+                // Emojis de fuente: tienen padding interno → se encoge el fondo para abrazarlos.
                 if (rect.firstCharIsEmoji) rect.shiftLeft += offset;
                 if (rect.lastCharIsEmoji) rect.shiftRight -= offset;
-                if (rect.firstCharIsEmoji || rect.lastCharIsEmoji) {
-                    rect.width = rect.shiftRight - rect.shiftLeft;
+                if (rect.startsWithImage) rect.shiftLeft -= imgEdge;
+                if (rect.endsWithImage) rect.shiftRight += imgEdge;
+                if (rect.firstCharIsEmoji || rect.lastCharIsEmoji || rect.startsWithImage || rect.endsWithImage) {
+                    rect.width = Math.max(rect.shiftRight - rect.shiftLeft, 0);
                 }
             });
 
@@ -757,6 +922,10 @@ function initializeApp() {
             pathElement.setAttribute('fill', bgRgba);
             svg.appendChild(pathElement);
         }
+
+        // Emoji-imagen inline: tspans-placeholder a posicionar como <image> una vez
+        // que el texto está en el DOM y conocemos la posición real de cada hueco.
+        const imageEmojisToPlace = [];
 
         // Renderizar texto con posicionamiento preciso
         lineMetrics.forEach((lineMetric) => {
@@ -782,58 +951,111 @@ function initializeApp() {
             // Dividir el texto en segmentos (texto normal y emojis) para aplicar diferentes tamaños
             const text = lineMetric.text;
             const emojiSize = lineSize * 0.80; // Emojis 20% más pequeños
-            
-            // Solo dividir si la línea contiene emojis
-            if (lineMetric.hasEmoji) {
-                // Dividir el texto usando el regex de emojis
+            const centerY = lineMetric.y + topPadding + textVerticalOffset;
+
+            // Solo dividir si la línea contiene emojis o emoji-imagen
+            if (lineMetric.hasEmoji || lineMetric.hasImageEmoji) {
+                // Tokenizar un fragmento de texto en partes {text, isEmoji}.
+                function tokenizeEmojis(str) {
+                    const out = [];
+                    let lastIndex = 0;
+                    let match;
+                    emojiRegex.lastIndex = 0;
+                    while ((match = emojiRegex.exec(str)) !== null) {
+                        if (match.index > lastIndex) {
+                            out.push({ text: str.substring(lastIndex, match.index), isEmoji: false });
+                        }
+                        out.push({ text: match[0], isEmoji: true });
+                        lastIndex = match.index + match[0].length;
+                    }
+                    if (lastIndex < str.length) {
+                        out.push({ text: str.substring(lastIndex), isEmoji: false });
+                    }
+                    return out;
+                }
+
+                // Separar por los centinelas de emoji-imagen y por las banderas de país
+                // (capturándolos) e intercalar las partes de imagen con texto/emoji normal.
                 const parts = [];
-                let lastIndex = 0;
-                let match;
-                
-                // Resetear el regex
-                emojiRegex.lastIndex = 0;
-                
-                while ((match = emojiRegex.exec(text)) !== null) {
-                    // Agregar texto antes del emoji
-                    if (match.index > lastIndex) {
-                        parts.push({
-                            text: text.substring(lastIndex, match.index),
-                            isEmoji: false
-                        });
+                const splitRe = new RegExp('(' + IMAGE_EMOJI_CHARCLASS + '|[\\u{1F1E6}-\\u{1F1FF}]{2})', 'gu');
+                const segments = text.split(splitRe);
+                segments.forEach((seg) => {
+                    if (!seg) return;
+                    const spec = IMAGE_EMOJI_BY_CHAR[seg];
+                    if (spec) {
+                        parts.push({ isImage: true, spec: spec });
+                    } else if (isCountryFlag(seg) && flagDataURICache.get(seg) !== 'failed') {
+                        // Bandera: como imagen, salvo que su descarga haya fallado
+                        // (offline) → cae al glifo de texto para no dejar un hueco vacío.
+                        parts.push({ isFlag: true, flag: seg });
+                    } else {
+                        tokenizeEmojis(seg).forEach(p => parts.push(p));
                     }
-                    // Agregar el emoji
-                    parts.push({
-                        text: match[0],
-                        isEmoji: true
-                    });
-                    lastIndex = match.index + match[0].length;
-                }
-                
-                // Agregar texto restante después del último emoji
-                if (lastIndex < text.length) {
-                    parts.push({
-                        text: text.substring(lastIndex),
-                        isEmoji: false
-                    });
-                }
-                
+                });
+
                 // Renderizar cada parte con su tamaño correspondiente
-                parts.forEach((part, index) => {
+                parts.forEach((part) => {
                     const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                    tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : lineSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
-                    if (part.isEmoji) {
-                        const dyValue = lineSize * 0.02;
-                        tspan.setAttribute('dy', dyValue.toString());
+                    if (part.isImage || part.isFlag) {
+                        // Placeholder: un espacio estirado al ancho reservado (textLength).
+                        // El <image> se coloca encima después, midiendo su posición real.
+                        // Banderas: cuadradas (aspect 1) y origen Twemoji (puede estar
+                        // cargándose → dataURI null, aparece al re-render tras el fetch).
+                        const aspect = part.isImage ? part.spec.aspect : 1;
+                        const dataURI = part.isImage ? part.spec.dataURI : getFlagDataURI(part.flag);
+                        const reserved = imageEmojiReservedWidth(lineSize, aspect);
+                        tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${lineSize}px; letter-spacing: 0px;`);
+                        tspan.setAttribute('textLength', reserved);
+                        // 'spacingAndGlyphs' (no 'spacing'): con un solo carácter, 'spacing'
+                        // no tiene espacios entre glifos que ajustar y el textLength se
+                        // ignora → el hueco quedaba más chico que la imagen y sobresalía.
+                        tspan.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+                        tspan.textContent = ' ';
+                        textElement.appendChild(tspan);
+                        imageEmojisToPlace.push({ tspan: tspan, reserved: reserved, centerY: centerY, dataURI: dataURI, aspect: aspect });
+                    } else {
+                        tspan.setAttribute('style', `font-family: ${fontFamily}; font-size: ${part.isEmoji ? emojiSize : lineSize}px; font-weight: ${fontWeight}; font-style: ${fontStyle}; letter-spacing: ${letterSpacingPx}px;`);
+                        if (part.isEmoji) {
+                            const dyValue = lineSize * 0.02;
+                            tspan.setAttribute('dy', dyValue.toString());
+                        }
+                        tspan.textContent = part.text;
+                        textElement.appendChild(tspan);
                     }
-                    tspan.textContent = part.text;
-                    textElement.appendChild(tspan);
                 });
             } else {
                 // Si no hay emojis, renderizar normalmente
                 textElement.textContent = text;
             }
-            
+
             svg.appendChild(textElement);
+        });
+
+        // Colocar los emoji-imagen inline: ahora que el texto está en el DOM, medimos
+        // la posición real de cada hueco reservado y superponemos el <image>.
+        imageEmojisToPlace.forEach((r) => {
+            let startX, endX;
+            try {
+                startX = r.tspan.getStartPositionOfChar(0).x;
+                endX = r.tspan.getEndPositionOfChar(0).x;
+            } catch (e) {
+                return; // si el navegador no puede medir, omitir este emoji-imagen
+            }
+            // Banderas todavía cargándose: el hueco queda reservado y la imagen
+            // aparece en el próximo render (disparado por getFlagDataURI al resolver).
+            if (!r.dataURI) return;
+            const w = Math.max(endX - startX, r.reserved);
+            const h = w / r.aspect;
+            const imageEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            imageEl.setAttribute('x', startX);
+            imageEl.setAttribute('y', r.centerY - h / 2);
+            imageEl.setAttribute('width', w);
+            imageEl.setAttribute('height', h);
+            imageEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+            // href y xlink:href para compatibilidad con la rasterización del export.
+            imageEl.setAttribute('href', r.dataURI);
+            imageEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', r.dataURI);
+            svg.appendChild(imageEl);
         });
 
         // Actualizar valores de UI
@@ -914,6 +1136,170 @@ function initializeApp() {
                 });
         }
     });
+    // ---- Combobox de fuentes con buscador + auto-carga de fuentes del sistema ----
+    const fontSearch = document.getElementById('font-search');
+    const fontList = document.getElementById('font-list');
+    const fontHint = document.getElementById('font-hint');
+
+    // Etiqueta legible de un value del <select> oculto.
+    function labelForValue(value) {
+        const opt = [...textStyle.options].find(o => o.value === value);
+        return opt ? opt.textContent : value;
+    }
+
+    // Items del combobox a partir del <select> (estilos + fuentes del sistema).
+    function getFontItems() {
+        const items = [];
+        [...textStyle.children].forEach(child => {
+            if (child.tagName === 'OPTGROUP') {
+                [...child.children].forEach(o => items.push({ value: o.value, label: o.textContent, group: child.label }));
+            } else if (child.tagName === 'OPTION') {
+                items.push({ value: child.value, label: child.textContent, group: 'Estilos' });
+            }
+        });
+        return items;
+    }
+
+    let fontListActiveIndex = -1;
+
+    function renderFontList(filter) {
+        if (!fontList) return;
+        const q = (filter || '').trim().toLowerCase();
+        const items = getFontItems().filter(it => !q || it.label.toLowerCase().includes(q));
+        fontListActiveIndex = -1;
+        fontList.innerHTML = '';
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'font-list-empty';
+            empty.textContent = 'Sin coincidencias';
+            fontList.appendChild(empty);
+            return;
+        }
+        let lastGroup = null;
+        items.forEach(it => {
+            if (it.group !== lastGroup) {
+                const g = document.createElement('div');
+                g.className = 'font-list-group';
+                g.textContent = it.group;
+                fontList.appendChild(g);
+                lastGroup = it.group;
+            }
+            const el = document.createElement('div');
+            el.className = 'font-list-item' + (it.value === textStyle.value ? ' selected' : '');
+            el.textContent = it.label;
+            el.dataset.value = it.value;
+            // mousedown (no click) para seleccionar antes de que el blur cierre la lista.
+            el.addEventListener('mousedown', e => { e.preventDefault(); selectFont(it.value); });
+            fontList.appendChild(el);
+        });
+    }
+
+    function openFontList() {
+        if (!fontList) return;
+        renderFontList(fontSearch.value === labelForValue(textStyle.value) ? '' : fontSearch.value);
+        fontList.style.display = 'block';
+        fontSearch.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeFontList() {
+        if (!fontList) return;
+        fontList.style.display = 'none';
+        fontSearch.setAttribute('aria-expanded', 'false');
+        fontSearch.value = labelForValue(textStyle.value);
+    }
+
+    function selectFont(value) {
+        textStyle.value = value;
+        fontSearch.value = labelForValue(value);
+        if (fontList) { fontList.style.display = 'none'; fontSearch.setAttribute('aria-expanded', 'false'); }
+        textStyle.dispatchEvent(new Event('change')); // dispara el handler existente
+    }
+
+    // Carga (una sola vez) las fuentes del sistema vía Local Font Access API.
+    let systemFontsLoaded = false;
+    let systemFontsLoading = false;
+    async function loadSystemFonts() {
+        if (systemFontsLoaded || systemFontsLoading) return;
+        if (typeof window.queryLocalFonts !== 'function') {
+            if (fontHint) { fontHint.style.display = 'block'; fontHint.textContent = 'Las fuentes del sistema requieren Chrome/Edge de escritorio (vía http://localhost o https).'; }
+            return;
+        }
+        systemFontsLoading = true;
+        try {
+            const fontData = await window.queryLocalFonts();
+            const families = [...new Set(fontData.map(f => f.family))].sort((a, b) => a.localeCompare(b));
+            const prev = document.getElementById('system-fonts-group');
+            if (prev) prev.remove();
+            const group = document.createElement('optgroup');
+            group.id = 'system-fonts-group';
+            group.label = 'Fuentes del sistema';
+            families.forEach(fam => {
+                const opt = document.createElement('option');
+                opt.value = 'sys:' + fam;
+                opt.textContent = fam;
+                group.appendChild(opt);
+            });
+            textStyle.appendChild(group);
+            systemFontsLoaded = true;
+            if (fontHint) fontHint.style.display = 'none';
+            if (fontList && fontList.style.display === 'block') renderFontList(fontSearch.value === labelForValue(textStyle.value) ? '' : fontSearch.value);
+        } catch (err) {
+            console.warn('No se pudieron cargar las fuentes del sistema:', err);
+            if (fontHint) { fontHint.style.display = 'block'; fontHint.textContent = 'No se pudo acceder a las fuentes del sistema (permiso denegado).'; }
+        } finally {
+            systemFontsLoading = false;
+        }
+    }
+
+    if (fontSearch && fontList) {
+        fontSearch.value = labelForValue(textStyle.value);
+
+        // Auto-cargar las fuentes del sistema en la primera interacción con el buscador
+        // (queryLocalFonts exige gesto del usuario; el click que da el foco lo provee).
+        fontSearch.addEventListener('focus', function() {
+            loadSystemFonts();
+            fontSearch.select();
+            openFontList();
+        });
+        fontSearch.addEventListener('input', function() {
+            fontList.style.display = 'block';
+            fontSearch.setAttribute('aria-expanded', 'true');
+            renderFontList(fontSearch.value);
+        });
+        fontSearch.addEventListener('keydown', function(e) {
+            const items = fontList.querySelectorAll('.font-list-item');
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!items.length) return;
+                fontListActiveIndex += (e.key === 'ArrowDown' ? 1 : -1);
+                if (fontListActiveIndex < 0) fontListActiveIndex = items.length - 1;
+                if (fontListActiveIndex >= items.length) fontListActiveIndex = 0;
+                items.forEach((el, i) => el.classList.toggle('active', i === fontListActiveIndex));
+                items[fontListActiveIndex].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const target = fontListActiveIndex >= 0 ? items[fontListActiveIndex] : items[0];
+                if (target) selectFont(target.dataset.value);
+            } else if (e.key === 'Escape') {
+                closeFontList();
+                fontSearch.blur();
+            }
+        });
+        // Cerrar al hacer click fuera del combobox.
+        document.addEventListener('click', function(e) {
+            const combo = document.getElementById('font-combobox');
+            if (combo && !combo.contains(e.target)) closeFontList();
+        });
+    }
+
+    // Mantener sincronizado el input del combobox con el value del <select>.
+    function syncFontComboboxDisplay() {
+        if (fontSearch) fontSearch.value = labelForValue(textStyle.value);
+    }
+
+    // Cuando una bandera Twemoji termina de descargarse, re-renderizar para mostrarla.
+    onFlagLoadedRerender = renderText;
+
     textColor.addEventListener('input', renderText);
     bgColor.addEventListener('input', renderText);
     bgOpacity.addEventListener('input', renderText);
@@ -1021,12 +1407,21 @@ function initializeApp() {
         }
         
         try {
+            // Asegurar que las banderas presentes en el texto estén descargadas (y
+            // dibujadas) antes de rasterizar: si no, saldrían como un hueco vacío en el
+            // PNG porque su <image> aún no existe.
+            const flagsInText = textInput.value.match(FLAG_RE) || [];
+            if (flagsInText.length > 0) {
+                await Promise.all(flagsInText.map(loadFlag));
+                renderText();
+            }
+
             const viewBox = svg.getAttribute('viewBox');
             if (!viewBox) {
                 alert('Error: The SVG does not have a viewBox defined.');
                 return;
             }
-            
+
             const viewBoxValues = viewBox.split(' ');
             const vbWidth = parseFloat(viewBoxValues[2]);
             const vbHeight = parseFloat(viewBoxValues[3]);
@@ -1034,8 +1429,11 @@ function initializeApp() {
             let pathBBox = null;
             const paths = svg.querySelectorAll('path');
             const textElements = svg.querySelectorAll('text');
-            
-            if (paths.length > 0 || textElements.length > 0) {
+            // Las imágenes (ej. anillos olímpicos) también cuentan para el recorte,
+            // si no quedarían fuera del PNG exportado.
+            const imageElements = svg.querySelectorAll('image');
+
+            if (paths.length > 0 || textElements.length > 0 || imageElements.length > 0) {
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 paths.forEach(path => {
                     try {
@@ -1049,6 +1447,15 @@ function initializeApp() {
                 textElements.forEach(text => {
                     try {
                         const bbox = text.getBBox();
+                        minX = Math.min(minX, bbox.x);
+                        minY = Math.min(minY, bbox.y);
+                        maxX = Math.max(maxX, bbox.x + bbox.width);
+                        maxY = Math.max(maxY, bbox.y + bbox.height);
+                    } catch (e) {}
+                });
+                imageElements.forEach(imgEl => {
+                    try {
+                        const bbox = imgEl.getBBox();
                         minX = Math.min(minX, bbox.x);
                         minY = Math.min(minY, bbox.y);
                         maxX = Math.max(maxX, bbox.x + bbox.width);
@@ -1223,7 +1630,7 @@ function initializeApp() {
                 let filename = 'instagram-text.png';
                 if (textToFilename && textToFilename.checked) {
                     const rawText = document.getElementById('text-input').value.trim();
-                    const noEmoji = rawText.replace(/\p{Emoji}/gu, '');
+                    const noEmoji = rawText.replace(/\p{Emoji}/gu, '').replace(new RegExp(IMAGE_EMOJI_CHARCLASS, 'g'), '');
                     const sanitized = noEmoji.replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
                     if (sanitized) filename = sanitized + '.png';
                 }
@@ -1268,6 +1675,31 @@ function initializeApp() {
             localStorage.setItem('recentEmojis', JSON.stringify(recent));
         }
 
+        // Contenido visual de un botón de emoji. Los emoji-imagen (anillos, bandera USA)
+        // no tienen codepoint Unicode: el botón muestra la imagen y guarda el centinela
+        // en dataset.emoji (lo que realmente se inserta en el texto).
+        function applyEmojiButtonContent(btn, value) {
+            const spec = IMAGE_EMOJI_BY_CHAR[value];
+            if (spec || isCountryFlag(value)) {
+                // Emoji-imagen (anillos) o bandera de país: el botón muestra la imagen
+                // (data URI para los centinelas; Twemoji por URL para las banderas) y
+                // guarda en dataset.emoji lo que se inserta realmente en el texto.
+                btn.dataset.emoji = value;
+                btn.title = spec ? spec.label : 'Bandera';
+                const im = document.createElement('img');
+                im.src = spec ? spec.dataURI : flagTwemojiUrl(value);
+                im.alt = btn.title;
+                im.loading = 'lazy';
+                im.style.width = '1.6em';
+                im.style.height = 'auto';
+                im.style.verticalAlign = 'middle';
+                im.style.pointerEvents = 'none';
+                btn.appendChild(im);
+            } else {
+                btn.textContent = value;
+            }
+        }
+
         function renderRecentEmojis() {
             const recentEmojisGrid = document.getElementById('recent-emojis-grid');
             const recentEmojisSection = document.getElementById('recent-emojis-section');
@@ -1287,9 +1719,9 @@ function initializeApp() {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'emoji-item';
-                button.textContent = emoji;
+                applyEmojiButtonContent(button, emoji);
                 button.addEventListener('click', function() {
-                    const emojiText = this.textContent;
+                    const emojiText = this.dataset.emoji || this.textContent;
                     textInput.value += emojiText;
                     textInput.dispatchEvent(new Event('input'));
                     renderText();
@@ -1317,11 +1749,81 @@ function initializeApp() {
             }
         });
 
+        // Catálogo completo de emojis, organizado según los grupos del estándar
+        // Unicode (emoji-test). Cada categoría es un string separado por espacios:
+        // ningún emoji contiene espacios, y las secuencias ZWJ / variation-selector
+        // quedan intactas dentro de cada token. Se omiten los modificadores de tono
+        // de piel (multiplicarían x6 la lista sin aportar a un editor de texto).
+        const EMOJI_CATEGORIES = [
+            { title: 'Smileys & Emotion', set: '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 🫠 😉 😊 😇 🥰 😍 🤩 😘 😗 ☺️ 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🫣 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫥 😶‍🌫️ 😏 😒 🙄 😬 😮‍💨 🤥 🫨 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 😵‍💫 🤯 🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 ☹️ 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 ☠️ 💩 🤡 👹 👺 👻 👽 👾 🤖 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🙈 🙉 🙊 💌 💘 💝 💖 💗 💓 💞 💕 💟 ❣️ 💔 ❤️‍🔥 ❤️‍🩹 ❤️ 🩷 🧡 💛 💚 💙 🩵 💜 🤎 🖤 🩶 🤍 💋 💯 💢 💥 💫 💦 💨 🕳️ 💬 👁️‍🗨️ 🗨️ 🗯️ 💭 💤' },
+            { title: 'People & Body', set: '👋 🤚 🖐️ ✋ 🖖 🫱 🫲 🫳 🫴 🫷 🫸 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 🖕 👇 ☝️ 🫵 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 🫶 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦿 🦵 🦶 👂 🦻 👃 🧠 🫀 🫁 🦷 🦴 👀 👁️ 👅 👄 🫦 👶 🧒 👦 👧 🧑 👱 👨 🧔 🧔‍♂️ 🧔‍♀️ 👨‍🦰 👨‍🦱 👨‍🦳 👨‍🦲 👩 👩‍🦰 🧑‍🦰 👩‍🦱 🧑‍🦱 👩‍🦳 🧑‍🦳 👩‍🦲 🧑‍🦲 👱‍♀️ 👱‍♂️ 🧓 👴 👵 🙍 🙍‍♂️ 🙍‍♀️ 🙎 🙎‍♂️ 🙎‍♀️ 🙅 🙅‍♂️ 🙅‍♀️ 🙆 🙆‍♂️ 🙆‍♀️ 💁 💁‍♂️ 💁‍♀️ 🙋 🙋‍♂️ 🙋‍♀️ 🧏 🧏‍♂️ 🧏‍♀️ 🙇 🙇‍♂️ 🙇‍♀️ 🤦 🤦‍♂️ 🤦‍♀️ 🤷 🤷‍♂️ 🤷‍♀️ 🧑‍⚕️ 👨‍⚕️ 👩‍⚕️ 🧑‍🎓 👨‍🎓 👩‍🎓 🧑‍🏫 👨‍🏫 👩‍🏫 🧑‍⚖️ 👨‍⚖️ 👩‍⚖️ 🧑‍🌾 👨‍🌾 👩‍🌾 🧑‍🍳 👨‍🍳 👩‍🍳 🧑‍🔧 👨‍🔧 👩‍🔧 🧑‍🏭 👨‍🏭 👩‍🏭 🧑‍💼 👨‍💼 👩‍💼 🧑‍🔬 👨‍🔬 👩‍🔬 🧑‍💻 👨‍💻 👩‍💻 🧑‍🎤 👨‍🎤 👩‍🎤 🧑‍🎨 👨‍🎨 👩‍🎨 🧑‍✈️ 👨‍✈️ 👩‍✈️ 🧑‍🚀 👨‍🚀 👩‍🚀 🧑‍🚒 👨‍🚒 👩‍🚒 👮 👮‍♂️ 👮‍♀️ 🕵️ 🕵️‍♂️ 🕵️‍♀️ 💂 💂‍♂️ 💂‍♀️ 🥷 👷 👷‍♂️ 👷‍♀️ 🫅 🤴 👸 👳 👳‍♂️ 👳‍♀️ 👲 🧕 🤵 🤵‍♂️ 🤵‍♀️ 👰 👰‍♂️ 👰‍♀️ 🤰 🫃 🫄 🤱 👼 🎅 🤶 🧑‍🎄 🦸 🦸‍♂️ 🦸‍♀️ 🦹 🦹‍♂️ 🦹‍♀️ 🧙 🧙‍♂️ 🧙‍♀️ 🧚 🧚‍♂️ 🧚‍♀️ 🧛 🧛‍♂️ 🧛‍♀️ 🧜 🧜‍♂️ 🧜‍♀️ 🧝 🧝‍♂️ 🧝‍♀️ 🧞 🧞‍♂️ 🧞‍♀️ 🧟 🧟‍♂️ 🧟‍♀️ 🧌 💆 💆‍♂️ 💆‍♀️ 💇 💇‍♂️ 💇‍♀️ 🚶 🚶‍♂️ 🚶‍♀️ 🧍 🧍‍♂️ 🧍‍♀️ 🧎 🧎‍♂️ 🧎‍♀️ 🏃 🏃‍♂️ 🏃‍♀️ 💃 🕺 🕴️ 👯 👯‍♂️ 👯‍♀️ 🧖 🧗 🤺 🏇 ⛷️ 🏂 🏌️ 🏄 🚣 🏊 ⛹️ 🏋️ 🚴 🚵 🤸 🤼 🤽 🤾 🤹 🧘 🛀 🛌 🧑‍🤝‍🧑 👭 👫 👬 💏 💑 👪 🗣️ 👤 👥 🫂 👣' },
+            { title: 'Animals & Nature', set: '🐵 🐒 🦍 🦧 🐶 🐕 🦮 🐕‍🦺 🐩 🐺 🦊 🦝 🐱 🐈 🐈‍⬛ 🦁 🐯 🐅 🐆 🐴 🫎 🫏 🐎 🦄 🦓 🦌 🦬 🐮 🐂 🐃 🐄 🐷 🐖 🐗 🐽 🐏 🐑 🐐 🐪 🐫 🦙 🦒 🐘 🦣 🦏 🦛 🐭 🐁 🐀 🐹 🐰 🐇 🐿️ 🦫 🦔 🦇 🐻 🐻‍❄️ 🐨 🐼 🦥 🦦 🦨 🦘 🦡 🐾 🦃 🐔 🐓 🐣 🐤 🐥 🐦 🐧 🕊️ 🦅 🦆 🦢 🦉 🦤 🪶 🦩 🦚 🦜 🪽 🐦‍⬛ 🪿 🐸 🐊 🐢 🦎 🐍 🐲 🐉 🦕 🦖 🐳 🐋 🐬 🦭 🐟 🐠 🐡 🦈 🐙 🐚 🪸 🪼 🐌 🦋 🐛 🐜 🐝 🪲 🐞 🦗 🪳 🕷️ 🕸️ 🦂 🦟 🪰 🪱 🦠 💐 🌸 💮 🪷 🏵️ 🌹 🥀 🌺 🌻 🌼 🌷 🪻 🌱 🪴 🌲 🌳 🌴 🌵 🌾 🌿 ☘️ 🍀 🍁 🍂 🍃 🪹 🪺 🍄 🪵 🌰' },
+            { title: 'Food & Drink', set: '🍇 🍈 🍉 🍊 🍋 🍋‍🟩 🍌 🍍 🥭 🍎 🍏 🍐 🍑 🍒 🍓 🫐 🥝 🍅 🫒 🥥 🥑 🍆 🥔 🥕 🌽 🌶️ 🫑 🥒 🥬 🥦 🧄 🧅 🥜 🫘 🫚 🫛 🍞 🥐 🥖 🫓 🥨 🥯 🥞 🧇 🧀 🍖 🍗 🥩 🥓 🍔 🍟 🍕 🌭 🥪 🌮 🌯 🫔 🥙 🧆 🥚 🍳 🥘 🍲 🫕 🥣 🥗 🍿 🧈 🧂 🥫 🍱 🍘 🍙 🍚 🍛 🍜 🍝 🍠 🍢 🍣 🍤 🍥 🥮 🍡 🥟 🥠 🥡 🦀 🦞 🦐 🦑 🦪 🍦 🍧 🍨 🍩 🍪 🎂 🍰 🧁 🥧 🍫 🍬 🍭 🍮 🍯 🍼 🥛 ☕ 🫖 🍵 🍶 🍾 🍷 🍸 🍹 🍺 🍻 🥂 🥃 🫗 🥤 🧋 🧃 🧉 🧊 🥢 🍽️ 🍴 🥄 🔪 🫙 🏺' },
+            { title: 'Travel & Places', set: '🌍 🌎 🌏 🌐 🗺️ 🗾 🧭 🏔️ ⛰️ 🌋 🗻 🏕️ 🏖️ 🏜️ 🏝️ 🏞️ 🏟️ 🏛️ 🏗️ 🧱 🪨 🛖 🏘️ 🏚️ 🏠 🏡 🏢 🏣 🏤 🏥 🏦 🏨 🏩 🏪 🏫 🏬 🏭 🏯 🏰 💒 🗼 🗽 ⛪ 🕌 🛕 🕍 ⛩️ 🕋 ⛲ ⛺ 🌁 🌃 🏙️ 🌄 🌅 🌆 🌇 🌉 ♨️ 🎠 🛝 🎡 🎢 💈 🎪 🚂 🚃 🚄 🚅 🚆 🚇 🚈 🚉 🚊 🚝 🚞 🚋 🚌 🚍 🚎 🚐 🚑 🚒 🚓 🚔 🚕 🚖 🚗 🚘 🚙 🛻 🚚 🚛 🚜 🏎️ 🏍️ 🛵 🦽 🦼 🛺 🚲 🛴 🛹 🛼 🚏 🛣️ 🛤️ 🛢️ ⛽ 🛞 🚨 🚥 🚦 🛑 🚧 ⚓ 🛟 ⛵ 🛶 🚤 🛳️ ⛴️ 🛥️ 🚢 ✈️ 🛩️ 🛫 🛬 🪂 💺 🚁 🚟 🚠 🚡 🛰️ 🚀 🛸 🛎️ 🧳 ⌛ ⏳ ⌚ ⏰ ⏱️ ⏲️ 🕰️ 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘 🌙 🌚 🌛 🌜 🌡️ ☀️ 🌝 🌞 🪐 ⭐ 🌟 🌠 🌌 ☁️ ⛅ ⛈️ 🌤️ 🌥️ 🌦️ 🌧️ 🌨️ 🌩️ 🌪️ 🌫️ 🌬️ 🌀 🌈 🌂 ☂️ ☔ ⛱️ ⚡ ❄️ ☃️ ⛄ ☄️ 🔥 💧 🌊' },
+            { title: 'Activities', set: '🎃 🎄 🎆 🎇 🧨 ✨ 🎈 🎉 🎊 🎋 🎍 🎎 🎏 🎐 🎑 🧧 🎀 🎁 🎗️ 🎟️ 🎫 🎖️ 🏆 🏅 🥇 🥈 🥉 ⚽ ⚾ 🥎 🏀 🏐 🏈 🏉 🎾 🥏 🎳 🏏 🏑 🏒 🥍 🏓 🏸 🥊 🥋 🥅 ⛳ ⛸️ 🎣 🤿 🎽 🎿 🛷 🥌 🎯 🪀 🪁 🔫 🎱 🔮 🪄 🎮 🕹️ 🎰 🎲 🧩 🧸 🪅 🪩 🪆 ♠️ ♥️ ♦️ ♣️ ♟️ 🃏 🀄 🎴 🎭 🖼️ 🎨 🧵 🪡 🧶 🪢' },
+            { title: 'Objects', set: '👓 🕶️ 🥽 🥼 🦺 👔 👕 👖 🧣 🧤 🧥 🧦 👗 👘 🥻 🩱 🩲 🩳 👙 👚 🪭 👛 👜 👝 🛍️ 🎒 🩴 👞 👟 🥾 🥿 👠 👡 🩰 👢 🪮 👑 👒 🎩 🎓 🧢 🪖 ⛑️ 📿 💄 💍 💎 🔇 🔈 🔉 🔊 📢 📣 📯 🔔 🔕 🎼 🎵 🎶 🎙️ 🎚️ 🎛️ 🎤 🎧 📻 🎷 🪗 🎸 🎹 🎺 🎻 🪕 🥁 🪘 🪇 🪈 📱 📲 ☎️ 📞 📟 📠 🔋 🪫 🔌 💻 🖥️ 🖨️ ⌨️ 🖱️ 🖲️ 💽 💾 💿 📀 🧮 🎥 🎞️ 📽️ 🎬 📺 📷 📸 📹 📼 🔍 🔎 🕯️ 💡 🔦 🏮 🪔 📔 📕 📖 📗 📘 📙 📚 📓 📒 📃 📜 📄 📰 🗞️ 📑 🔖 🏷️ 💰 🪙 💴 💵 💶 💷 💸 💳 🧾 💹 ✉️ 📧 📨 📩 📤 📥 📦 📫 📪 📬 📭 📮 🗳️ ✏️ ✒️ 🖋️ 🖊️ 🖌️ 🖍️ 📝 💼 📁 📂 🗂️ 📅 📆 🗒️ 🗓️ 📇 📈 📉 📊 📋 📌 📍 📎 🖇️ 📏 📐 ✂️ 🗃️ 🗄️ 🗑️ 🔒 🔓 🔏 🔐 🔑 🗝️ 🔨 🪓 ⛏️ ⚒️ 🛠️ 🗡️ ⚔️ 💣 🪃 🏹 🛡️ 🪚 🔧 🪛 🔩 ⚙️ 🗜️ ⚖️ 🦯 🔗 ⛓️‍💥 ⛓️ 🪝 🧰 🧲 🪜 ⚗️ 🧪 🧫 🧬 🔬 🔭 📡 💉 🩸 💊 🩹 🩼 🩺 🩻 🚪 🛗 🪞 🪟 🛏️ 🛋️ 🪑 🚽 🪠 🚿 🛁 🪤 🪒 🧴 🧷 🧹 🧺 🧻 🪣 🧼 🫧 🪥 🧽 🧯 🛒 🚬 ⚰️ 🪦 ⚱️ 🧿 🪬 🗿 🪧 🪪' },
+            { title: 'Symbols', set: '🏧 🚮 🚰 ♿ 🚹 🚺 🚻 🚼 🚾 🛂 🛃 🛄 🛅 ⚠️ 🚸 ⛔ 🚫 🚳 🚭 🚯 🚱 🚷 📵 🔞 ☢️ ☣️ ⬆️ ↗️ ➡️ ↘️ ⬇️ ↙️ ⬅️ ↖️ ↕️ ↔️ ↩️ ↪️ ⤴️ ⤵️ 🔃 🔄 🔙 🔚 🔛 🔜 🔝 🛐 ⚛️ 🕉️ ✡️ ☸️ ☯️ ✝️ ☦️ ☪️ ☮️ 🕎 🔯 🪯 ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ ⛎ 🔀 🔁 🔂 ▶️ ⏩ ⏭️ ⏯️ ◀️ ⏪ ⏮️ 🔼 ⏫ 🔽 ⏬ ⏸️ ⏹️ ⏺️ ⏏️ 🎦 🔅 🔆 📶 🛜 📳 📴 ♀️ ♂️ ⚧️ ✖️ ➕ ➖ ➗ 🟰 ♾️ ‼️ ⁉️ ❓ ❔ ❕ ❗ 〰️ 💱 💲 ⚕️ ♻️ ⚜️ 🔱 📛 🔰 ⭕ ✅ ☑️ ✔️ ❌ ❎ ➰ ➿ 〽️ ✳️ ✴️ ❇️ ©️ ®️ ™️ #️⃣ *️⃣ 0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🔠 🔡 🔢 🔣 🔤 🅰️ 🆎 🅱️ 🆑 🆒 🆓 ℹ️ 🆔 Ⓜ️ 🆕 🆖 🅾️ 🆗 🅿️ 🆘 🆙 🆚 🈁 🈂️ 🈷️ 🈶 🈯 🉐 🈹 🈚 🈲 🉑 🈸 🈴 🈳 ㊗️ ㊙️ 🈺 🈵 🔴 🟠 🟡 🟢 🔵 🟣 🟤 ⚫ ⚪ 🟥 🟧 🟨 🟩 🟦 🟪 🟫 ⬛ ⬜ ◼️ ◻️ ◾ ◽ ▪️ ▫️ 🔶 🔷 🔸 🔹 🔺 🔻 💠 🔘 🔳 🔲' },
+            { title: 'Flags', set: '🏁 🚩 🎌 🏴 🏳️ 🏳️‍🌈 🏳️‍⚧️ 🏴‍☠️ 🇦🇷 🇧🇷 🇨🇱 🇺🇾 🇵🇾 🇧🇴 🇵🇪 🇨🇴 🇻🇪 🇪🇨 🇲🇽 🇺🇸 🇨🇦 🇪🇸 🇵🇹 🇫🇷 🇮🇹 🇩🇪 🇬🇧 🇮🇪 🇳🇱 🇧🇪 🇨🇭 🇦🇹 🇸🇪 🇳🇴 🇩🇰 🇫🇮 🇵🇱 🇷🇺 🇺🇦 🇬🇷 🇹🇷 🇯🇵 🇨🇳 🇰🇷 🇮🇳 🇮🇩 🇹🇭 🇻🇳 🇵🇭 🇦🇺 🇳🇿 🇿🇦 🇪🇬 🇲🇦 🇳🇬 🇮🇱 🇸🇦 🇦🇪 🇪🇺' },
+        ];
+
+        function buildEmojiPicker() {
+            // Sección especial: anillos olímpicos (emoji-imagen, sin codepoint Unicode).
+            // Se agrega primero para que quede arriba de todo, justo bajo "Recently Used".
+            const specialSection = document.createElement('div');
+            specialSection.className = 'emoji-section';
+            const specialTitle = document.createElement('div');
+            specialTitle.className = 'emoji-section-title';
+            specialTitle.textContent = 'Especiales';
+            specialSection.appendChild(specialTitle);
+            const specialGrid = document.createElement('div');
+            specialGrid.className = 'emoji-grid';
+            IMAGE_EMOJIS.forEach(spec => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'emoji-item';
+                applyEmojiButtonContent(b, spec.char);
+                specialGrid.appendChild(b);
+            });
+            specialSection.appendChild(specialGrid);
+            emojiPanel.appendChild(specialSection);
+
+            const seen = new Set();
+            EMOJI_CATEGORIES.forEach(cat => {
+                const emojis = cat.set.split(/\s+/).filter(e => e && !seen.has(e));
+                emojis.forEach(e => seen.add(e));
+                if (emojis.length === 0) return;
+
+                const section = document.createElement('div');
+                section.className = 'emoji-section';
+
+                const title = document.createElement('div');
+                title.className = 'emoji-section-title';
+                title.textContent = cat.title;
+                section.appendChild(title);
+
+                const grid = document.createElement('div');
+                grid.className = 'emoji-grid';
+                emojis.forEach(e => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'emoji-item';
+                    applyEmojiButtonContent(btn, e);
+                    grid.appendChild(btn);
+                });
+                section.appendChild(grid);
+
+                // Se agrega al final del panel, quedando después de "Recently Used".
+                emojiPanel.appendChild(section);
+            });
+        }
+
+        buildEmojiPicker();
+
         // Agregar emoji al final del texto
         const emojiItems = emojiPanel.querySelectorAll('.emoji-item');
         emojiItems.forEach(item => {
             item.addEventListener('click', function() {
-                const emoji = this.textContent;
+                const emoji = this.dataset.emoji || this.textContent;
                 textInput.value += emoji;
                 textInput.dispatchEvent(new Event('input'));
                 renderText();
@@ -1396,6 +1898,7 @@ function initializeApp() {
         // Aplicar valores del preset
         textInput.value = preset.text || '';
         textStyle.value = preset.textStyle || 'classic';
+        syncFontComboboxDisplay();
         textColor.value = preset.textColor || '#000000';
         bgColor.value = preset.bgColor || '#ffffff';
         bgOpacity.value = preset.bgOpacity || 100;
