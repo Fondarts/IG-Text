@@ -6,14 +6,22 @@
     <title>Social text editor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Bebas+Neue&family=Montserrat:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Meow+Script&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <!-- Las fuentes (locales y Google Fonts) se registran desde js/fonts.js -->
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="js/main.js"></script>
 </head>
 <body>
     <div class="container">
         <div class="editor-panel">
-            <h1>Social text editor</h1>
-            
+            <div class="editor-header">
+                <h1>Social text editor</h1>
+                <div class="history-buttons">
+                    <button type="button" id="undo-btn" class="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+                    <button type="button" id="redo-btn" class="icon-btn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+                </div>
+            </div>
+
             <div class="input-section">
                 <label for="text-input">Write your text:</label>
                 <textarea id="text-input" placeholder="Type your text here...">First line
@@ -21,16 +29,17 @@ Second line ✌️</textarea>
             </div>
 
             <div class="control-group">
-                <label>Add emoji:</label>
+                <label for="emoji-btn">Add emoji:</label>
                 <div class="emoji-selector">
-                    <button type="button" id="emoji-btn" class="emoji-btn">😀 Emojis</button>
-                    <div id="emoji-panel" class="emoji-panel" style="display: none;">
-                        <div class="emoji-section" id="recent-emojis-section" style="display: none;">
-                            <div class="emoji-section-title">Recently Used</div>
-                            <div class="emoji-grid" id="recent-emojis-grid">
-                            </div>
+                    <button type="button" id="emoji-btn" class="emoji-btn" aria-haspopup="true" aria-expanded="false" aria-controls="emoji-panel">😀 Emojis</button>
+                    <div id="emoji-panel" class="emoji-panel" hidden>
+                        <div class="emoji-panel-header">
+                            <nav id="emoji-nav" class="emoji-nav" aria-label="Emoji categories"></nav>
+                            <input type="search" id="emoji-search" class="emoji-search" placeholder="Search emoji (English or Spanish)…" autocomplete="off" aria-label="Search emoji">
                         </div>
-                        <!-- Secciones de emojis generadas dinamicamente por buildEmojiPicker() en script.js -->
+                        <p class="emoji-hint">Right-click or long-press an emoji to add it to ★ favorites</p>
+                        <p id="emoji-status" class="emoji-status" hidden></p>
+                        <div id="emoji-sections" class="emoji-sections"></div>
                     </div>
                 </div>
             </div>
@@ -38,44 +47,28 @@ Second line ✌️</textarea>
             <div class="controls">
                 <div class="control-group-inline">
                     <div class="control-group">
-                        <label for="font-search">Text style / Fuente:</label>
+                        <label for="font-search">Font:</label>
                         <div class="font-combobox" id="font-combobox">
-                            <input type="text" id="font-search" placeholder="Buscar estilo o fuente del sistema…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list">
-                            <div id="font-list" class="font-list" role="listbox" style="display: none;"></div>
+                            <input type="text" id="font-search" placeholder="Search a style or system font…" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="font-list">
+                            <div id="font-list" class="font-list" role="listbox" hidden></div>
                         </div>
-                        <!-- Fuente de valor (oculto): lo usan getFontFamily y los presets. -->
-                        <select id="text-style" style="display: none;" tabindex="-1" aria-hidden="true">
-                            <option value="classic">Classic</option>
-                            <option value="modern">Modern</option>
-                            <option value="neon">Neon</option>
-                            <option value="typewriter">Typewriter</option>
-                            <option value="strong">Strong</option>
-                            <option value="google-sans">Google Sans</option>
-                            <option value="montserrat">Montserrat</option>
-                            <option value="playfair">Playfair Display</option>
-                            <option value="comic-sans">Comic Sans</option>
-                            <option value="google-sans-code">Google Sans Code</option>
-                            <option value="meow-script">Meow Script</option>
-                            <option value="sf-pro-display-black-italic">SF Pro Display Black Italic</option>
-                            <option value="custom">Custom Font</option>
-                        </select>
-                        <small id="font-hint" style="display: none; color: #666; font-size: 11px;"></small>
+                        <small id="font-hint" class="hint" hidden></small>
                     </div>
 
                     <div class="control-group">
                         <label for="text-align">Text alignment:</label>
                         <select id="text-align">
                             <option value="left">Left</option>
-                            <option value="center" selected>Center</option>
+                            <option value="center">Center</option>
                             <option value="right">Right</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="control-group" id="custom-font-group" style="display: none;">
+                <div class="control-group" id="custom-font-group" hidden>
                     <label for="custom-font-file">Upload custom font:</label>
                     <input type="file" id="custom-font-file" accept=".ttf,.otf,.woff,.woff2">
-                    <small style="display: block; margin-top: 5px; color: #666; font-size: 12px;">Supported formats: TTF, OTF, WOFF, WOFF2</small>
+                    <small class="hint">Supported formats: TTF, OTF, WOFF, WOFF2</small>
                 </div>
 
                 <div class="control-group-inline">
@@ -90,22 +83,14 @@ Second line ✌️</textarea>
                     </div>
                 </div>
 
-                <div class="control-group-inline">
-                    <div class="control-group">
-                        <label for="bg-opacity">Background opacity:</label>
-                        <input type="range" id="bg-opacity" min="0" max="100" value="100">
-                        <span id="opacity-value">100%</span>
-                    </div>
-
-                    <div class="control-group">
-                        <label for="font-size">Font size:</label>
-                        <input type="range" id="font-size" min="15" max="90" value="33">
-                        <span id="font-size-value">33px</span>
-                    </div>
+                <div class="control-group">
+                    <label for="font-size">Font size:</label>
+                    <input type="range" id="font-size" min="15" max="90" value="33">
+                    <span id="font-size-value" class="range-value">33px</span>
                 </div>
 
-                <div class="control-group" id="per-line-size-group" style="display: none;">
-                    <label>Font size per line:</label>
+                <div class="control-group" id="per-line-size-group" hidden>
+                    <label>Font size per line <small class="hint inline-hint">(scales with the font size above)</small></label>
                     <div id="per-line-size-list" class="per-line-size-list"></div>
                 </div>
 
@@ -113,47 +98,55 @@ Second line ✌️</textarea>
                     <div class="control-group">
                         <label for="line-height">Line height:</label>
                         <input type="range" id="line-height" min="80" max="200" value="120">
-                        <span id="line-height-value">1.2</span>
+                        <span id="line-height-value" class="range-value">1.2</span>
                     </div>
 
                     <div class="control-group">
                         <label for="letter-spacing">Letter spacing:</label>
                         <input type="range" id="letter-spacing" min="-5" max="20" value="0">
-                        <span id="letter-spacing-value">0px</span>
+                        <span id="letter-spacing-value" class="range-value">0px</span>
                     </div>
                 </div>
 
                 <div class="control-group-inline">
+                    <div class="control-group">
+                        <label for="padding-x">Horizontal padding:</label>
+                        <input type="range" id="padding-x" min="0" max="300" step="5" value="100">
+                        <span id="padding-x-value" class="range-value">100%</span>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="padding-y">Vertical padding:</label>
+                        <input type="range" id="padding-y" min="0" max="300" step="5" value="100">
+                        <span id="padding-y-value" class="range-value">100%</span>
+                    </div>
+                </div>
+
+                <div class="control-group-inline">
+                    <div class="control-group">
+                        <label for="bg-opacity">Background opacity:</label>
+                        <input type="range" id="bg-opacity" min="0" max="100" value="100">
+                        <span id="opacity-value" class="range-value">100%</span>
+                    </div>
+
                     <div class="control-group">
                         <label for="border-radius">Corner radius:</label>
                         <input type="range" id="border-radius" min="1" max="25" value="10">
-                        <span id="border-radius-value">10px</span>
-                    </div>
-
-                    <div class="control-group">
-                        <label for="text-vertical-position">Vertical position:</label>
-                        <input type="range" id="text-vertical-position" min="-100" max="100" value="0">
-                        <span id="text-vertical-position-value">0px</span>
+                        <span id="border-radius-value" class="range-value">10px</span>
                     </div>
                 </div>
 
                 <div class="control-group-inline">
                     <div class="control-group">
-                        <label>
-                            <input type="checkbox" id="bold"> Bold
-                        </label>
+                        <label><input type="checkbox" id="bold"> Bold</label>
                     </div>
 
                     <div class="control-group">
-                        <label>
-                            <input type="checkbox" id="italic"> Italic
-                        </label>
+                        <label><input type="checkbox" id="italic"> Italic</label>
                     </div>
 
                     <div class="control-group">
-                        <label>
-                            <input type="checkbox" id="transparent-bg"> Transparent background
-                        </label>
+                        <label><input type="checkbox" id="transparent-bg"> Transparent background</label>
                     </div>
                 </div>
 
@@ -168,52 +161,52 @@ Second line ✌️</textarea>
                     </div>
 
                     <div class="control-group">
-                        <label for="bg-image-file">Background image (optional):</label>
+                        <label for="bg-image-file">Story background image (optional):</label>
                         <input type="file" id="bg-image-file" accept="image/*">
-                        <button type="button" id="remove-bg-image" class="remove-bg-btn" style="display: none;">Remove background</button>
-                    </div>
-                </div>
-
-                <div class="control-group-inline">
-                    <div class="control-group">
-                        <label for="preset-select">Presets:</label>
-                        <select id="preset-select">
-                            <option value="">-- Select a preset --</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <button type="button" id="save-preset-btn" class="download-btn" style="margin-top: 24px;">Save Preset</button>
+                        <button type="button" id="remove-bg-image" class="secondary-btn danger" hidden>Remove background</button>
                     </div>
                 </div>
 
                 <div class="control-group">
-                    <label>
-                        <input type="checkbox" id="text-to-filename"> Text to filename
-                    </label>
+                    <label for="preset-select">Presets:</label>
+                    <div class="preset-row">
+                        <select id="preset-select"></select>
+                        <button type="button" id="save-preset-btn" class="secondary-btn">Save</button>
+                        <button type="button" id="rename-preset-btn" class="secondary-btn">Rename</button>
+                        <button type="button" id="delete-preset-btn" class="secondary-btn danger">Delete</button>
+                    </div>
                 </div>
+
                 <div class="control-group">
-                    <button id="download-btn" class="download-btn">Download PNG</button>
+                    <label><input type="checkbox" id="text-to-filename"> Use the text as the filename</label>
                 </div>
+
+                <div class="export-row">
+                    <button type="button" id="download-btn" class="download-btn" title="Ctrl+S">Download PNG</button>
+                    <button type="button" id="copy-btn" class="secondary-btn">Copy PNG</button>
+                    <button type="button" id="download-story-btn" class="secondary-btn" title="Full 1080×1920 story with the background image and the text where you dragged it">Download story</button>
+                </div>
+                <small class="hint">Ctrl+S download · Ctrl+Z / Ctrl+Shift+Z undo/redo (outside text fields)</small>
             </div>
         </div>
 
-            <div class="preview-panel">
+        <div class="preview-panel">
+            <div class="preview-header">
                 <h2>Preview</h2>
-                <div class="story-container">
-                    <div class="story-background">
-                        <img id="bg-image-preview" class="bg-image-preview" style="display: none;" alt="Background">
-                        <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg"></svg>
-                        <img id="safe-zone-organic" class="safe-zone-overlay" src="Safezones/Organic%20safe%20zones%20Reels.png" alt="Organic Safe Zone" style="display: none;">
-                        <img id="safe-zone-paid" class="safe-zone-overlay" src="Safezones/paid%20safezone.png" alt="Paid Safe Zone" style="display: none;">
-                    </div>
-                </div>
+                <button type="button" id="center-btn" class="secondary-btn" title="Move the text back to the center">Center text</button>
             </div>
+            <div class="story-container">
+                <img id="bg-image-preview" class="bg-image-preview" alt="" hidden>
+                <svg id="text-svg" class="text-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Text preview"></svg>
+                <img id="safe-zone-organic" class="safe-zone-overlay" src="Safezones/Organic%20safe%20zones%20Reels.png" alt="" hidden>
+                <img id="safe-zone-paid" class="safe-zone-overlay" src="Safezones/paid%20safezone.png" alt="" hidden>
+            </div>
+            <small class="hint preview-hint">Drag the text to move it · double-click to re-center</small>
+        </div>
     </div>
 
-    <footer style="text-align: center; padding: 20px; color: white; font-size: 14px;">
-        By <a href="https://bardosoft.vercel.app/index.html" target="_blank" style="color: white; text-decoration: underline;">Bardosoft</a>
+    <footer class="footer">
+        By <a href="https://bardosoft.vercel.app/index.html" target="_blank" rel="noopener">Bardosoft</a>
     </footer>
-
-    <script src="script.js?v=3"></script>
 </body>
 </html>

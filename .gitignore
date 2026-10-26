@@ -1,0 +1,6 @@
+node_modules/
+tests/output/
+.claude/settings.local.json
+.claude/node_modules/
+.claude/shots/
+*.log
