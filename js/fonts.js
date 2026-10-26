@@ -3,58 +3,53 @@ import { blobToDataURL } from './storage.js';
 // Registro ÚNICO de fuentes. De acá salen: las @font-face locales, el <link> de
 // Google Fonts, la lista del selector, el font-family del render y el embebido
 // de la fuente en el PNG exportado.
-//   file       → fuente local del repo (Fonts/…), con el peso/estilo REAL del archivo
-//   google     → pesos disponibles en Google Fonts
-//   (ninguno)  → fuente del sistema (Courier New, Comic Sans…)
-//   textWeight → peso con el que se dibuja el texto sin "Bold". Tiene que existir
-//                en la fuente: si se pide 600 a una fuente que sólo tiene Regular,
-//                el navegador la engrosa artificialmente (faux bold) y deja de
-//                verse como en Instagram.
+//   file        → fuente local del repo (Fonts/…), con el peso/estilo REAL del archivo
+//   google      → se carga de Google Fonts (variable cuando weights es un rango)
+//   (ninguno)   → fuente del sistema (Courier New, Comic Sans…)
+//   weights     → [min, max] de pesos REALES que tiene la fuente
+//   textWeight  → peso por defecto (el que usa Instagram para ese estilo)
+// Por encima del peso real máximo, el peso se simula con un contorno (ver resolveWeight).
 export const FONTS = [
     { id: 'classic', label: 'Classic', family: 'Proxima-Nova-Semibold', fallback: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      file: 'Fonts/Proxima-Nova-Semibold.ttf', format: 'truetype', weight: 600, style: 'normal', textWeight: 600 },
+      file: 'Fonts/Proxima-Nova-Semibold.ttf', format: 'truetype', style: 'normal', weights: [600, 600], textWeight: 600 },
     { id: 'modern', label: 'Modern', family: 'Aveny-T', fallback: 'sans-serif',
-      file: 'Fonts/Aveny-T.ttf', format: 'truetype', weight: 400, style: 'normal', textWeight: 400 },
+      file: 'Fonts/Aveny-T.ttf', format: 'truetype', style: 'normal', weights: [400, 400], textWeight: 400 },
     { id: 'neon', label: 'Neon', family: 'CosmopolitanScript', fallback: 'sans-serif',
-      file: 'Fonts/CosmopolitanScriptRegular.otf', format: 'opentype', weight: 400, style: 'normal', textWeight: 400 },
-    { id: 'typewriter', label: 'Typewriter', family: 'Courier New', fallback: 'monospace', textWeight: 400 },
-    { id: 'strong', label: 'Strong', family: 'Bebas Neue', fallback: 'Impact, "Arial Black", sans-serif', google: [400], textWeight: 400 },
-    { id: 'google-sans', label: 'Google Sans', family: 'Google Sans', fallback: 'Roboto, sans-serif', google: [400, 600, 700], textWeight: 600 },
-    { id: 'montserrat', label: 'Montserrat', family: 'Montserrat', fallback: 'sans-serif', google: [400, 600, 700], textWeight: 600 },
-    { id: 'playfair', label: 'Playfair Display', family: 'Playfair Display', fallback: 'Georgia, serif', google: [400, 600, 700], textWeight: 600 },
-    { id: 'comic-sans', label: 'Comic Sans', family: 'Comic Sans MS', fallback: '"Comic Sans", cursive', textWeight: 400 },
-    { id: 'google-sans-code', label: 'Google Sans Code', family: 'Google Sans Code', fallback: '"Courier New", monospace', google: [400, 600, 700], textWeight: 600 },
-    { id: 'meow-script', label: 'Meow Script', family: 'Meow Script', fallback: 'cursive', google: [400], textWeight: 400 },
+      file: 'Fonts/CosmopolitanScriptRegular.otf', format: 'opentype', style: 'normal', weights: [400, 400], textWeight: 400 },
+    { id: 'typewriter', label: 'Typewriter', family: 'Courier New', fallback: 'monospace', weights: [400, 400], textWeight: 400 },
+    { id: 'strong', label: 'Strong', family: 'Bebas Neue', fallback: 'Impact, "Arial Black", sans-serif', google: true, weights: [400, 400], textWeight: 400 },
+    { id: 'google-sans', label: 'Google Sans', family: 'Google Sans', fallback: 'Roboto, sans-serif', google: true, weights: [400, 700], textWeight: 600 },
+    { id: 'montserrat', label: 'Montserrat', family: 'Montserrat', fallback: 'sans-serif', google: true, weights: [100, 900], textWeight: 600 },
+    { id: 'playfair', label: 'Playfair Display', family: 'Playfair Display', fallback: 'Georgia, serif', google: true, weights: [400, 900], textWeight: 600 },
+    { id: 'comic-sans', label: 'Comic Sans', family: 'Comic Sans MS', fallback: '"Comic Sans", cursive', weights: [400, 400], textWeight: 400 },
+    { id: 'google-sans-code', label: 'Google Sans Code', family: 'Google Sans Code', fallback: '"Courier New", monospace', google: true, weights: [300, 800], textWeight: 600 },
+    { id: 'meow-script', label: 'Meow Script', family: 'Meow Script', fallback: 'cursive', google: true, weights: [400, 400], textWeight: 400 },
     { id: 'sf-pro-display-black-italic', label: 'SF Pro Display Black Italic', family: 'SF-Pro-Display-BlackItalic', fallback: '-apple-system, BlinkMacSystemFont, sans-serif',
-      file: 'Fonts/SF-Pro-Display-BlackItalic.otf', format: 'opentype', weight: 900, style: 'italic', textWeight: 900 },
+      file: 'Fonts/SF-Pro-Display-BlackItalic.otf', format: 'opentype', style: 'italic', weights: [900, 900], textWeight: 900 },
 ];
 const FONT_BY_ID = new Map(FONTS.map(f => [f.id, f]));
 
-// Peso de dibujo: el propio de la fuente, o 700 con "Bold". Fuentes del sistema
-// y custom: Regular.
-export function getTextWeight(fontId, bold) {
-    if (bold) return 700;
-    const f = FONT_BY_ID.get(fontId);
-    return f ? f.textWeight : 400;
-}
+export const WEIGHT_MAX = 900;
 
 const MIME_BY_FORMAT = { truetype: 'font/ttf', opentype: 'font/otf', woff: 'font/woff', woff2: 'font/woff2' };
 
-function googleCssUrl(family, weights) {
-    return `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}:wght@${weights.join(';')}&display=swap`;
+function googleFamilyParam(f) {
+    const name = encodeURIComponent(f.family).replace(/%20/g, '+');
+    const [min, max] = f.weights;
+    return min < max ? `${name}:wght@${min}..${max}` : name;
 }
 
 // Registrar las fuentes locales y Google Fonts en la página (una sola vez, al importar).
 (function installFonts() {
     const css = FONTS.filter(f => f.file).map(f =>
-        `@font-face{font-family:'${f.family}';src:url('${f.file}') format('${f.format}');font-weight:${f.weight};font-style:${f.style};}`
+        `@font-face{font-family:'${f.family}';src:url('${f.file}') format('${f.format}');font-weight:${f.weights[0]};font-style:${f.style};}`
     ).join('\n');
     const style = document.createElement('style');
     style.textContent = css;
     document.head.appendChild(style);
 
-    const families = FONTS.filter(f => f.google)
-        .map(f => `family=${encodeURIComponent(f.family).replace(/%20/g, '+')}${f.google.length > 1 ? ':wght@' + f.google.join(';') : ''}`);
+    // Rango wght@min..max → Chrome recibe la fuente VARIABLE (todos los pesos en un archivo).
+    const families = FONTS.filter(f => f.google).map(f => 'family=' + googleFamilyParam(f));
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = `https://fonts.googleapis.com/css2?${families.join('&')}&display=swap`;
@@ -85,8 +80,22 @@ export async function loadCustomFont(file) {
 // ---- Fuentes del sistema (Local Font Access API) -------------------------------
 let systemFamilies = null;
 let systemFontsPromise = null;
+const systemWeights = new Map(); // family -> pesos reales instalados (ordenados)
 
 export function getSystemFamilies() { return systemFamilies || []; }
+
+// Peso a partir del nombre de estilo ("Bold Italic", "SemiBold", "Black"…).
+// El orden importa: "extrabold" antes que "bold", "semibold" antes que "bold".
+const STYLE_WEIGHTS = [
+    [/thin|hairline/, 100], [/extra ?light|ultra ?light/, 200], [/light/, 300],
+    [/medium/, 500], [/semi ?bold|demi ?bold/, 600], [/extra ?bold|ultra ?bold/, 800],
+    [/black|heavy/, 900], [/bold/, 700]
+];
+function weightFromStyle(style) {
+    const s = (style || '').toLowerCase();
+    for (const [re, w] of STYLE_WEIGHTS) if (re.test(s)) return w;
+    return 400;
+}
 
 // Requiere gesto del usuario la primera vez (Chrome/Edge de escritorio, https o localhost).
 export function loadSystemFonts() {
@@ -96,7 +105,12 @@ export function loadSystemFonts() {
     }
     systemFontsPromise = window.queryLocalFonts()
         .then(fonts => {
-            systemFamilies = [...new Set(fonts.map(f => f.family))].sort((a, b) => a.localeCompare(b));
+            fonts.forEach(f => {
+                const set = systemWeights.get(f.family) || new Set();
+                set.add(weightFromStyle(f.style));
+                systemWeights.set(f.family, set);
+            });
+            systemFamilies = [...systemWeights.keys()].sort((a, b) => a.localeCompare(b));
             return systemFamilies;
         })
         .catch(err => {
@@ -127,6 +141,40 @@ export function isKnownFontId(fontId) {
     return FONT_BY_ID.has(fontId) || fontId === 'custom' || (typeof fontId === 'string' && fontId.startsWith('sys:'));
 }
 
+// Pesos reales de una fuente: { variable: [min, max] } o { faces: [w1, w2, …] }.
+function realWeightsOf(fontId) {
+    const f = FONT_BY_ID.get(fontId);
+    if (f) {
+        const [min, max] = f.weights;
+        return min < max ? { variable: f.weights, def: f.textWeight } : { faces: [min], def: f.textWeight };
+    }
+    if (fontId && fontId.startsWith('sys:')) {
+        const set = systemWeights.get(fontId.slice(4));
+        const faces = set ? [...set].sort((a, b) => a - b) : [400];
+        const def = faces.includes(400) ? 400 : faces.reduce((b, w) => (Math.abs(w - 400) < Math.abs(b - 400) ? w : b));
+        return { faces, def };
+    }
+    return { faces: [400], def: 400 }; // custom: una sola cara, declarada como normal
+}
+
+// Traduce el peso pedido (null = default de la fuente) a:
+//   real      → peso CSS a pedir (siempre uno que la fuente tiene: nunca faux bold)
+//   simulated → unidades de peso que faltan, que se dibujan con un contorno
+//   min       → el slider no puede bajar del peso real más fino
+export function resolveWeight(fontId, requested) {
+    const info = realWeightsOf(fontId);
+    const min = info.variable ? info.variable[0] : info.faces[0];
+    const weight = Math.min(WEIGHT_MAX, Math.max(min, requested == null ? info.def : requested));
+    let real;
+    if (info.variable) {
+        real = Math.min(weight, info.variable[1]);
+    } else {
+        // Cara instalada más gruesa que no supere el peso pedido.
+        real = info.faces.filter(w => w <= weight).pop();
+    }
+    return { weight, real, simulated: weight - real, min, def: info.def, isDefault: requested == null };
+}
+
 // Espera (con tope) a que la fuente esté lista antes de medir, para no cachear
 // mediciones tomadas con la fuente fallback.
 export function ensureFontLoaded(fontId, weight, timeoutMs = 800) {
@@ -139,13 +187,9 @@ export function ensureFontLoaded(fontId, weight, timeoutMs = 800) {
 
 // ---- Embebido para el export ----------------------------------------------------
 // Un SVG cargado como <img> no puede pedir recursos externos: la fuente activa
-// tiene que ir como data URI. Se cachea por fuente+peso (antes se descargaban y
-// convertían las 4 fuentes locales en cada descarga).
+// tiene que ir como data URI. Se cachea por fuente: las de Google se embeben como
+// fuente variable, así un solo archivo sirve para cualquier peso.
 const embedCache = new Map();
-
-function nearestWeight(available, requested) {
-    return available.reduce((best, w) => Math.abs(w - requested) < Math.abs(best - requested) ? w : best, available[0]);
-}
 
 async function fetchDataURL(url) {
     const res = await fetch(url);
@@ -155,15 +199,15 @@ async function fetchDataURL(url) {
 
 async function buildLocalFontCSS(f) {
     const dataURL = await fetchDataURL(f.file);
-    return `@font-face{font-family:'${f.family}';src:url(${dataURL}) format('${f.format}');font-weight:${f.weight};font-style:${f.style};}`;
+    return `@font-face{font-family:'${f.family}';src:url(${dataURL}) format('${f.format}');font-weight:${f.weights[0]};font-style:${f.style};}`;
 }
 
-async function buildGoogleFontCSS(f, weight) {
-    const res = await fetch(googleCssUrl(f.family, [weight]));
+async function buildGoogleFontCSS(f) {
+    const res = await fetch(`https://fonts.googleapis.com/css2?family=${googleFamilyParam(f)}&display=swap`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const cssText = await res.text();
     const blocks = [...cssText.matchAll(/@font-face\s*\{[^}]+\}/g)].map(m => m[0]);
-    // Reemplazar cada url(...) por su data URI, conservando unicode-range y peso.
+    // Reemplazar cada url(...) por su data URI, conservando unicode-range y pesos.
     const embedded = await Promise.all(blocks.map(async block => {
         const urlMatch = block.match(/url\(['"]?([^'")]+)['"]?\)/);
         if (!urlMatch) return '';
@@ -173,7 +217,7 @@ async function buildGoogleFontCSS(f, weight) {
     return embedded.join('\n');
 }
 
-export function getEmbeddedFontCSS(fontId, bold) {
+export function getEmbeddedFontCSS(fontId) {
     if (fontId === 'custom') {
         return Promise.resolve(customFont
             ? `@font-face{font-family:'${customFont.family}';src:url(${customFont.dataURL}) format('${customFont.format}');}`
@@ -182,16 +226,14 @@ export function getEmbeddedFontCSS(fontId, bold) {
     const f = FONT_BY_ID.get(fontId);
     // Fuentes del sistema: el SVG rasterizado las resuelve por nombre.
     if (!f || (!f.file && !f.google)) return Promise.resolve('');
-    const weight = f.google ? nearestWeight(f.google, getTextWeight(fontId, bold)) : f.weight;
-    const key = `${fontId}|${weight}`;
-    if (!embedCache.has(key)) {
-        const p = (f.file ? buildLocalFontCSS(f) : buildGoogleFontCSS(f, weight))
+    if (!embedCache.has(fontId)) {
+        const p = (f.file ? buildLocalFontCSS(f) : buildGoogleFontCSS(f))
             .catch(err => {
                 console.warn(`No se pudo embeber la fuente "${f.family}":`, err);
-                embedCache.delete(key); // reintentar en la próxima descarga
+                embedCache.delete(fontId); // reintentar en la próxima descarga
                 return '';
             });
-        embedCache.set(key, p);
+        embedCache.set(fontId, p);
     }
-    return embedCache.get(key);
+    return embedCache.get(fontId);
 }

@@ -838,3 +838,8 @@ input[type="file"]::file-selector-button:hover {
     font-weight: 400;
     margin-left: 4px;
 }
+
+/* Peso simulado (contorno): se distingue del peso real de la fuente. */
+.range-value.simulated {
+    color: #f0b429;
+}

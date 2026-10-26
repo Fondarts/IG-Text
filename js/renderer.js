@@ -1,7 +1,7 @@
 import { buildBackgroundPath } from './background-path.js';
 import { tokenize, getFlagDataURI } from './emoji.js';
 import { lineSize } from './state.js';
-import { getTextWeight } from './fonts.js';
+import { resolveWeight } from './fonts.js';
 
 // Canvas lógico FIJO de la story (9:16). El layout ya no depende del tamaño de la
 // ventana: el CSS escala el SVG y el export sale siempre 1:1 (×3 → 1080×1920).
@@ -49,8 +49,20 @@ function graphemes(str) {
     return segmenter ? [...segmenter.segment(str)].map(s => s.segment) : [...str];
 }
 
+// Peso simulado: contorno del color del texto. Grosor proporcional al tamaño de
+// la línea y a las unidades de peso que faltan (calibrado contra el bold
+// sintético de Chrome: +300 de peso ≈ el mismo engrosamiento).
+const STROKE_PER_300 = 0.033;
+function simulatedStroke(style, size) {
+    return +(size * STROKE_PER_300 * style.simulated / 300).toFixed(3);
+}
+
+// font-synthesis: style → el navegador puede inclinar (italic) pero NUNCA engrosar
+// por su cuenta: el peso extra lo controla el contorno.
 function textStyleAttr(style, size) {
-    return `font-family: ${style.fontFamily}; font-size: ${size}px; font-weight: ${style.weight}; font-style: ${style.fontStyle}; letter-spacing: ${style.letterSpacing}px;`;
+    const stroke = simulatedStroke(style, size);
+    return `font-family: ${style.fontFamily}; font-size: ${size}px; font-weight: ${style.weight}; font-style: ${style.fontStyle}; letter-spacing: ${style.letterSpacing}px; font-synthesis: style;` +
+        (stroke > 0 ? ` stroke-width: ${stroke}px; stroke-linejoin: round;` : '');
 }
 
 export function createRenderer(svg) {
@@ -85,7 +97,7 @@ export function createRenderer(svg) {
                     // solo carácter, 'spacing' no tiene nada que ajustar e ignora textLength.
                     const aspect = tok.type === 'image' ? tok.spec.aspect : 1;
                     const reserved = size * IMAGE_EMOJI_HEIGHT * aspect;
-                    tspan.setAttribute('style', `font-size: ${size}px; letter-spacing: 0px;`);
+                    tspan.setAttribute('style', `font-size: ${size}px; letter-spacing: 0px; stroke: none;`);
                     tspan.setAttribute('textLength', reserved);
                     tspan.setAttribute('lengthAdjust', 'spacingAndGlyphs');
                     if (currentDy) { tspan.setAttribute('dy', -currentDy); currentDy = 0; }
@@ -95,7 +107,8 @@ export function createRenderer(svg) {
                         dataURI: tok.type === 'image' ? tok.spec.dataURI : getFlagDataURI(tok.flag)
                     });
                 } else if (tok.type === 'emoji') {
-                    tspan.setAttribute('style', `font-size: ${+(size * EMOJI_SCALE).toFixed(2)}px;`);
+                    // Sin contorno: sobre un emoji a color dibujaría su silueta.
+                    tspan.setAttribute('style', `font-size: ${+(size * EMOJI_SCALE).toFixed(2)}px; stroke: none;`);
                     if (currentDy !== emojiDy) { tspan.setAttribute('dy', emojiDy - currentDy); currentDy = emojiDy; }
                     tspan.textContent = tok.text;
                 } else {
@@ -166,9 +179,11 @@ export function createRenderer(svg) {
     }
 
     function render(state, fontFamily) {
+        const weight = resolveWeight(state.fontId, state.weight);
         const style = {
             fontFamily,
-            weight: getTextWeight(state.fontId, state.bold),
+            weight: weight.real,
+            simulated: weight.simulated,
             fontStyle: state.italic ? 'italic' : 'normal',
             letterSpacing: state.letterSpacing
         };
@@ -310,6 +325,7 @@ export function createRenderer(svg) {
             l.el.setAttribute('x', l.textX);
             l.el.setAttribute('y', l.centerY);
             l.el.setAttribute('fill', state.textColor);
+            if (style.simulated > 0) l.el.setAttribute('stroke', state.textColor);
             content.appendChild(l.el);
         });
 

@@ -14,7 +14,7 @@ export const DEFAULTS = Object.freeze({
     borderRadius: 10,
     paddingX: 100,
     paddingY: 100,
-    bold: false,
+    weight: null, // null = peso por defecto de la fuente (ver resolveWeight)
     italic: false,
     transparentBg: false,
     align: 'center',
@@ -57,6 +57,7 @@ const NUMBER_RANGES = {
     borderRadius: [1, 25],
     paddingX: [0, 300],
     paddingY: [0, 300],
+    weight: [100, 900],
     offsetX: [-1000, 1000],
     offsetY: [-1000, 1000]
 };
@@ -74,6 +75,8 @@ export function normalizeState(input) {
         const base = Number(src.fontSize) || DEFAULTS.fontSize;
         src.perLineScales = src.perLineSizes.map(x => (x == null || !(Number(x) > 0) ? null : Number(x) / base));
     }
+    // Versión anterior: checkbox "Bold" → peso 700.
+    if (src.weight === undefined && (src.bold === true || src.bold === 'true')) src.weight = 700;
     const out = {};
     for (const [key, def] of Object.entries(DEFAULTS)) {
         let v = src[key];

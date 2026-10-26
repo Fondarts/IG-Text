@@ -25,7 +25,7 @@ const toastText = page => page.$$eval('.toast', ts => ts.map(t => t.textContent)
 
 let page = await freshPage();
 // El registro de fuentes se lee de la propia app (mismo módulo que usa la página).
-const FONTS = await page.evaluate(() => import('./js/fonts.js').then(m => m.FONTS.map(f => ({ label: f.label, family: f.family, file: !!f.file, google: !!f.google, textWeight: f.textWeight, fileWeight: f.weight, googleWeights: f.google || [] }))));
+const FONTS = await page.evaluate(() => import('./js/fonts.js').then(m => m.FONTS.map(f => ({ label: f.label, family: f.family, file: !!f.file, google: !!f.google, textWeight: f.textWeight, weights: f.weights }))));
 
 // ---- Picker de emojis ----
 await t.step('emoji nav bar: one icon per category, favorites/recent hidden when empty', async () => {
@@ -123,8 +123,7 @@ for (const f of FONTS) {
         // Se dibuja con su peso propio, y ese peso existe en la fuente (sin faux bold).
         const style = await page.$eval('#text-svg .text-content text', el => el.getAttribute('style'));
         assert.ok(style.includes(`font-weight: ${f.textWeight};`), `expected weight ${f.textWeight}: ${style}`);
-        if (f.file) assert.equal(f.fileWeight, f.textWeight, 'local file weight');
-        if (f.google) assert.ok(f.googleWeights.includes(f.textWeight), `Google weights ${f.googleWeights}`);
+        assert.ok(f.textWeight >= f.weights[0] && f.textWeight <= f.weights[1], `weights ${f.weights}`);
         if (f.file || f.google) {
             const ok = await page.evaluate(([fam, w]) => document.fonts.check(`${w} 40px "${fam}"`), [f.family, f.textWeight]);
             assert.ok(ok, `${f.family} not loaded`);
@@ -164,14 +163,107 @@ await t.step('invalid custom font shows an error toast', async () => {
     assert.match(await toastText(page), /not a valid font/);
 });
 
-await t.step('bold / italic change the rendered style', async () => {
+// ---- Peso ----
+const textStyle = () => page.$eval('#text-svg .text-content text', el => ({
+    style: el.getAttribute('style'), stroke: el.getAttribute('stroke'), fill: el.getAttribute('fill')
+}));
+const weightUI = () => page.evaluate(() => ({
+    min: document.getElementById('font-weight').min,
+    value: document.getElementById('font-weight').value,
+    label: document.getElementById('font-weight-value').textContent
+}));
+
+await t.step('weight: variable font (Montserrat) uses real weights 100–900, no outline', async () => {
+    await setText(page, 'Weight test');
+    await selectFont(page, 'Montserrat');
+    assert.equal((await weightUI()).min, '100');
+    for (const w of [100, 350, 900]) {
+        await setControl(page, 'font-weight', w);
+        await settle(page);
+        const s = await textStyle();
+        assert.ok(s.style.includes(`font-weight: ${w};`), s.style);
+        assert.ok(!s.style.includes('stroke-width') && !s.stroke, `no outline at ${w}`);
+        assert.match((await weightUI()).label, new RegExp(`^${w} · real`));
+    }
+});
+
+await t.step('weight: single-weight font (Modern) simulates heavier weights with an outline', async () => {
+    await selectFont(page, 'Modern');
+    const ui = await weightUI();
+    assert.equal(ui.min, '400');
+    assert.match(ui.label, /^400 · real · default/);
+    await setControl(page, 'font-weight', 700);
+    await settle(page);
+    const s = await textStyle();
+    assert.ok(s.style.includes('font-weight: 400;'), 'requests the real Regular weight: ' + s.style);
+    assert.ok(/stroke-width: [\d.]+px/.test(s.style) && s.stroke === s.fill, 'outline in the text color');
+    assert.match((await weightUI()).label, /^700 · simulated \(real 400\)/);
+});
+
+await t.step('weight: cannot go below the lightest real weight', async () => {
+    await setControl(page, 'font-weight', 200);
+    await settle(page);
+    assert.equal((await weightUI()).value, '400');
+    assert.ok((await textStyle()).style.includes('font-weight: 400;'));
+});
+
+await t.step('weight: changing font resets to that font\'s default; double-click resets too', async () => {
+    await setControl(page, 'font-weight', 800);
     await selectFont(page, 'Classic');
-    await setControl(page, 'bold', true);
+    assert.match((await weightUI()).label, /^600 · real · default/);
+    await setControl(page, 'font-weight', 750);
+    await page.dblclick('#font-weight');
+    assert.match((await weightUI()).label, /default/);
+});
+
+await t.step('weight: browser faux bold is disabled on every text', async () => {
+    const all = await page.$$eval('#text-svg .text-content text', ts => ts.map(t => t.getAttribute('style')));
+    for (const s of all) assert.ok(s.includes('font-synthesis: style'), s);
+});
+
+await t.step('weight: emojis never get the outline', async () => {
+    await selectFont(page, 'Modern');
+    await setText(page, 'Hi 😀');
+    await setControl(page, 'font-weight', 800);
+    await settle(page);
+    const emojiStyle = await page.$eval('#text-svg .text-content tspan:last-child', el => el.getAttribute('style'));
+    assert.ok(emojiStyle.includes('stroke: none'), emojiStyle);
+});
+
+// Tinta (opacidad acumulada) del PNG exportado: más peso → más tinta, siempre.
+async function exportedInk() {
+    const { buf } = await download(page, '#download-btn');
+    return page.evaluate(async b64 => {
+        const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+        const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data; let n = 0;
+        for (let k = 3; k < d.length; k += 4) n += d[k] / 255;
+        return n;
+    }, buf.toString('base64'));
+}
+
+for (const font of ['Modern', 'Montserrat']) {
+    await t.step(`weight: exported PNG gets heavier step by step (${font})`, async () => {
+        await setText(page, 'Heavier and heavier');
+        await setControl(page, 'transparent-bg', true);
+        await selectFont(page, font);
+        const inks = [];
+        for (const w of [400, 550, 700, 900]) {
+            await setControl(page, 'font-weight', w);
+            await settle(page, 300);
+            inks.push(await exportedInk());
+        }
+        for (let i = 1; i < inks.length; i++) assert.ok(inks[i] > inks[i - 1] * 1.03, `ink ${inks.map(Math.round)}`);
+        await setControl(page, 'transparent-bg', false);
+    });
+}
+
+await t.step('italic changes the rendered style', async () => {
+    await selectFont(page, 'Classic');
     await setControl(page, 'italic', true);
     await settle(page);
-    const style = await page.$eval('#text-svg .text-content text', el => el.getAttribute('style'));
-    assert.ok(style.includes('font-weight: 700') && style.includes('font-style: italic'), style);
-    await setControl(page, 'bold', false);
+    assert.ok((await textStyle()).style.includes('font-style: italic'));
     await setControl(page, 'italic', false);
 });
 
@@ -279,6 +371,13 @@ await t.step('corrupted localStorage does not break the app', async () => {
     });
     assert.equal(await p.locator('#text-svg .text-content text').count(), 2);
     await p.click('#emoji-btn');
+    assert.deepEqual(p.errors, []);
+    await p.context().close();
+});
+
+await t.step('legacy autosave with bold: true becomes weight 700', async () => {
+    const p = await freshPage({}, { textEditorLastState: JSON.stringify({ text: 'Old bold', textStyle: 'modern', bold: true }) });
+    assert.match(await p.textContent('#font-weight-value'), /^700 · simulated/);
     assert.deepEqual(p.errors, []);
     await p.context().close();
 });

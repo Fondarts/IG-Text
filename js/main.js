@@ -1,4 +1,4 @@
-import { getFontFamily, getTextWeight, ensureFontLoaded, loadCustomFont, getCustomFont, getEmbeddedFontCSS } from './fonts.js';
+import { getFontFamily, resolveWeight, ensureFontLoaded, loadCustomFont, getCustomFont, getEmbeddedFontCSS } from './fonts.js';
 import { onFlagLoaded, loadFlagsIn } from './emoji.js';
 import { createRenderer, STORY_W, STORY_H } from './renderer.js';
 import { DEFAULTS, normalizeState, toPreset, remapPerLine, createHistory, scaleForSize } from './state.js';
@@ -40,7 +40,7 @@ function remeasure() {
     scheduleRender();
 }
 function waitForFont() {
-    ensureFontLoaded(state.fontId, getTextWeight(state.fontId, state.bold)).then(remeasure);
+    ensureFontLoaded(state.fontId, resolveWeight(state.fontId, state.weight).real).then(remeasure);
 }
 
 // ---- Historial + autoguardado ---------------------------------------------------
@@ -62,7 +62,7 @@ function commit() {
 }
 
 function update(patch) {
-    const fontChanged = 'fontId' in patch || 'bold' in patch || 'italic' in patch;
+    const fontChanged = 'fontId' in patch || 'weight' in patch || 'italic' in patch;
     Object.assign(state, patch);
     syncUI();
     scheduleRender();
@@ -110,7 +110,6 @@ const CONTROLS = [
     { id: 'border-radius', key: 'borderRadius', label: 'border-radius-value', fmt: v => `${v}px` },
     { id: 'padding-x', key: 'paddingX', label: 'padding-x-value', fmt: v => `${v}%` },
     { id: 'padding-y', key: 'paddingY', label: 'padding-y-value', fmt: v => `${v}%` },
-    { id: 'bold', key: 'bold' },
     { id: 'italic', key: 'italic' },
     { id: 'transparent-bg', key: 'transparentBg' },
     { id: 'text-align', key: 'align' },
@@ -160,6 +159,23 @@ const perLine = createPerLineSizes({
     }
 });
 
+// ---- Peso de la fuente ------------------------------------------------------------
+// El rango arranca en el peso real más fino de la fuente. Por encima del más grueso
+// real, el peso se simula (contorno): el label lo indica.
+const weightSlider = $('font-weight');
+const weightValue = $('font-weight-value');
+weightSlider.addEventListener('input', () => update({ weight: parseInt(weightSlider.value, 10) }));
+weightSlider.addEventListener('dblclick', () => update({ weight: null }));
+
+function syncWeight() {
+    const w = resolveWeight(state.fontId, state.weight);
+    weightSlider.min = String(w.min);
+    if (String(weightSlider.value) !== String(w.weight)) weightSlider.value = String(w.weight);
+    const kind = w.simulated > 0 ? `simulated (real ${w.real})` : 'real';
+    weightValue.textContent = `${w.weight} · ${kind}${w.isDefault ? ' · default' : ''}`;
+    weightValue.classList.toggle('simulated', w.simulated > 0);
+}
+
 // ---- Fuentes ----------------------------------------------------------------------
 const customFontGroup = $('custom-font-group');
 const fontCombo = createFontCombobox({
@@ -168,7 +184,8 @@ const fontCombo = createFontCombobox({
     list: $('font-list'),
     hint: $('font-hint'),
     getValue: () => state.fontId,
-    onSelect: value => update({ fontId: value })
+    // Al cambiar de fuente, el peso vuelve al propio de esa fuente.
+    onSelect: value => update({ fontId: value, weight: null })
 });
 
 $('custom-font-file').addEventListener('change', e => {
@@ -177,7 +194,7 @@ $('custom-font-file').addEventListener('change', e => {
     loadCustomFont(file)
         .then(font => {
             renderer.clearMeasureCache();
-            update({ fontId: 'custom' });
+            update({ fontId: 'custom', weight: null });
             toast(`Font "${font.name}" loaded`);
         })
         .catch(err => {
@@ -289,6 +306,7 @@ function syncUI() {
         caretKnown = false;
     }
     fontCombo.sync();
+    syncWeight();
     customFontGroup.hidden = state.fontId !== 'custom';
     perLine.update(state);
     Object.entries(safeZoneImgs).forEach(([k, img]) => { img.hidden = state.safeZones !== k; });
@@ -332,7 +350,7 @@ async function buildPNG(mode) {
     // Banderas descargadas (y dibujadas) antes de rasterizar; si no, saldría un hueco.
     await loadFlagsIn(state.text);
     renderNow();
-    const fontCSS = await getEmbeddedFontCSS(state.fontId, state.bold);
+    const fontCSS = await getEmbeddedFontCSS(state.fontId);
     return renderPNG({ svg, content: renderer.content, mode, fontCSS, backgroundImage });
 }
 
